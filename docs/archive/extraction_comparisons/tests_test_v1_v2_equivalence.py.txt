@@ -1,0 +1,304 @@
+"""
+Comparison test: citysignal v1 vs v2 output equivalence.
+
+Runs v2 extraction on signal 1155 / 2026-02-06 (which has existing v1 output),
+then compares the resulting DataFrames column-by-column.
+"""
+
+import sys
+import os
+import time
+import logging
+import warnings
+
+# Suppress warnings
+warnings.simplefilter('ignore')
+
+# Add project root first, citysignal venv last (system packages take precedence)
+sys.path.insert(0, '/home/ya195253/YJ/python_scripts/ATSPM')
+sys.path.append('/home/ya195253/YJ/python_scripts/ATSPM/citysignal/Lib/site-packages')
+
+import pandas as pd
+import numpy as np
+
+# ── Configuration ──
+SIGNAL_ID = "1245"
+YEAR, MONTH, DAY = 2026, 1, 7
+DATE_STR = f"{YEAR}-{MONTH:02d}-{DAY:02d}"
+
+EVENT_DIR = "/data2/ATSPM/raw_data"
+CONFIG_DIR = "/data2/ATSPM/config_data/signal_config_2025/lanes"
+OUTPUT_DIR = "/data2/ATSPM/processed_data"
+
+V1_BASE = "/data2/ATSPM/processed_data/fdot_d5/feature_extraction/feature/cycle"
+
+# Feature map: feature_name -> (v1_event_type, v1_feature_folder)
+FEATURE_MAP = {
+    'volume':     ('vehicle_traffic', 'volume'),
+    'headway':    ('vehicle_traffic', 'headway'),
+    'occupancy':  ('vehicle_traffic', 'occupancy'),
+    'gap':        ('vehicle_traffic', 'gap'),
+    'pet':        ('vehicle_traffic', 'pet'),
+    'red_running':('vehicle_traffic', 'red_running'),
+    'dilemma_running': ('vehicle_traffic', 'dilemma_running'),
+    'shockwave':  ('vehicle_traffic', 'shockwave'),
+    'pedestrian_activity': ('pedestrian_traffic', 'activity'),
+    'pedestrian_delay': ('pedestrian_traffic', 'delay'),
+}
+
+
+def load_v1_output(feature_name):
+    """Load v1 output for a feature.""" 
+    event_type, folder = FEATURE_MAP[feature_name]
+    path = os.path.join(V1_BASE, event_type, folder, SIGNAL_ID, f"{DATE_STR}.pkl")
+    if os.path.exists(path):
+        return pd.read_pickle(path)
+    return None
+
+
+def compare_dataframes(df_v1, df_v2, feature_name):
+    """Compare v1 and v2 DataFrames, returning a summary dict."""
+    result = {
+        'feature': feature_name,
+        'v1_rows': len(df_v1) if df_v1 is not None else 0,
+        'v2_rows': len(df_v2) if df_v2 is not None else 0,
+        'row_match': False,
+        'common_cols': 0,
+        'v1_only_cols': [],
+        'v2_only_cols': [],
+        'matching_cols': 0,
+        'mismatched_cols': [],
+        'status': 'UNKNOWN'
+    }
+    
+    if df_v1 is None and df_v2 is None:
+        result['status'] = 'BOTH_EMPTY'
+        return result
+    if df_v1 is None:
+        result['status'] = 'V1_MISSING'
+        return result
+    if df_v2 is None or len(df_v2) == 0:
+        result['status'] = 'V2_EMPTY'
+        return result
+    
+    result['row_match'] = len(df_v1) == len(df_v2)
+    
+    v1_cols = set(df_v1.columns)
+    v2_cols = set(df_v2.columns)
+    common = v1_cols & v2_cols
+    result['common_cols'] = len(common)
+    result['v1_only_cols'] = sorted(v1_cols - v2_cols)
+    result['v2_only_cols'] = sorted(v2_cols - v1_cols)
+    
+    # Align by cycleNo if possible
+    min_rows = min(len(df_v1), len(df_v2))
+    if 'cycleNo' in common:
+        df_v1_sorted = df_v1.sort_values('cycleNo').reset_index(drop=True).head(min_rows)
+        df_v2_sorted = df_v2.sort_values('cycleNo').reset_index(drop=True).head(min_rows)
+    else:
+        df_v1_sorted = df_v1.reset_index(drop=True).head(min_rows)
+        df_v2_sorted = df_v2.reset_index(drop=True).head(min_rows)
+    
+    # Skip metadata columns for value comparison
+    skip_cols = {'signalID', 'cycleNo', 'cycleBegin', 'cycleEnd', 'cycleLength', 'date'}
+    value_cols = common - skip_cols
+    
+    matching = 0
+    mismatched = []
+    
+    for col in sorted(value_cols):
+        try:
+            v1_vals = df_v1_sorted[col]
+            v2_vals = df_v2_sorted[col]
+            
+            if v1_vals.dtype == 'O' or v2_vals.dtype == 'O':
+                match = (v1_vals.astype(str) == v2_vals.astype(str)).all()
+            elif pd.api.types.is_numeric_dtype(v1_vals) and pd.api.types.is_numeric_dtype(v2_vals):
+                match = np.allclose(
+                    v1_vals.fillna(-999).values.astype(float),
+                    v2_vals.fillna(-999).values.astype(float),
+                    rtol=1e-3, atol=1e-3, equal_nan=True
+                )
+            else:
+                match = (v1_vals == v2_vals).all()
+            
+            if match:
+                matching += 1
+            else:
+                if pd.api.types.is_numeric_dtype(v1_vals) and pd.api.types.is_numeric_dtype(v2_vals):
+                    diff = (v1_vals.fillna(0) - v2_vals.fillna(0)).abs()
+                    max_diff = diff.max()
+                    mean_diff = diff.mean()
+                    mismatched.append(f"{col} (max={max_diff:.4f}, mean={mean_diff:.4f})")
+                else:
+                    n_diff = (v1_vals.astype(str) != v2_vals.astype(str)).sum()
+                    mismatched.append(f"{col} ({n_diff}/{len(v1_vals)} differ)")
+        except Exception as e:
+            mismatched.append(f"{col} (error: {str(e)[:50]})")
+    
+    result['matching_cols'] = matching
+    result['mismatched_cols'] = mismatched
+    
+    if len(mismatched) == 0 and result['row_match']:
+        result['status'] = 'MATCH'
+    elif len(mismatched) == 0:
+        result['status'] = 'ROW_COUNT_DIFFERS'
+    else:
+        result['status'] = 'VALUES_DIFFER'
+    
+    return result
+
+
+def main():
+    logging.basicConfig(level=logging.WARNING)
+    
+    print(f"{'='*70}")
+    print(f"CITYSIGNAL V1 vs V2 EQUIVALENCE TEST")
+    print(f"Signal: {SIGNAL_ID}  Date: {DATE_STR}")
+    print(f"{'='*70}\n")
+    
+    # ── Step 1: Set up paths (matching process_local_atspm.py logic) ──
+    print("Step 1: Setting up paths...")
+    
+    import citysignal.components.feature_extraction.feature_extraction as fe
+    
+    abs_event_dir = os.path.abspath(EVENT_DIR)
+    abs_output_dir = os.path.abspath(OUTPUT_DIR)
+    
+    try:
+        common_path = os.path.commonpath([abs_event_dir, abs_output_dir])
+        rel_interim = os.path.relpath(abs_event_dir, common_path)
+        rel_production = os.path.relpath(abs_output_dir, common_path)
+        cwd = common_path
+    except (ValueError, OSError):
+        cwd = abs_event_dir
+        rel_interim = ""
+        rel_production = os.path.relpath(abs_output_dir, abs_event_dir)
+    
+    fe.cwd = cwd
+    fe.relative_interim_database_dirpath = rel_interim
+    fe.relative_production_database_dirpath = rel_production
+    
+    print(f"  CWD: {cwd}")
+    print(f"  Relative interim: '{rel_interim}'")
+    print(f"  Relative production: '{rel_production}'")
+    
+    # Check event pkl exists
+    event_file = os.path.join(EVENT_DIR, "fdot_d5", "event_data", SIGNAL_ID, f"{DATE_STR}.pkl")
+    if not os.path.exists(event_file):
+        print(f"  ERROR: Event pkl not found: {event_file}")
+        return
+    print(f"  Event pkl: {event_file} ✓")
+    
+    # Prepare signal config
+    config_src = os.path.join(CONFIG_DIR, f"{SIGNAL_ID}.csv")
+    config_dst_dir = os.path.join(EVENT_DIR, "fdot_d5", "signal_config")
+    config_dst = os.path.join(config_dst_dir, f"{SIGNAL_ID}.csv")
+    
+    if not os.path.exists(config_dst):
+        df_config = pd.read_csv(config_src)
+        rename_map = {
+            "Approach": "approach", "Lane Type": "laneType", "Width": "width",
+            "Length": "length", "Lane No. from Left": "laneNoFromLeft", "Type": "type",
+            "Channel": "channelNo", "Phase": "phaseNo", "Stopbar Distance": "stopBarDistance",
+            "Slot Number": "slotNo"
+        }
+        df_config = df_config.rename(columns=rename_map)
+        os.makedirs(config_dst_dir, exist_ok=True)
+        df_config.to_csv(config_dst, index=False)
+        print(f"  Created config: {config_dst}")
+    else:
+        print(f"  Config exists: {config_dst} ✓")
+    
+    # ── Step 2: Generate profiles ──
+    print("\nStep 2: Generating profiles...")
+    t_start = time.time()
+    
+    from citysignal.components.feature_extraction.feature_extraction import TrafficSignalProfile
+    profile = TrafficSignalProfile(day=DAY, month=MONTH, year=YEAR)
+    
+    for prof_type in ["vehicle_signal", "pedestrian_signal"]:
+        try:
+            profile.extract_phase_profile(signal_id=SIGNAL_ID, event_type=prof_type)
+            print(f"  Phase profile ({prof_type}) ✓")
+        except Exception as e:
+            print(f"  Phase profile ({prof_type}): {e}")
+        try:
+            profile.extract_cycle_profile(signal_id=SIGNAL_ID, event_type=prof_type)
+            print(f"  Cycle profile ({prof_type}) ✓")
+        except Exception as e:
+            print(f"  Cycle profile ({prof_type}): {e}")
+    
+    t_profiles = time.time()
+    print(f"  Profiles: {t_profiles - t_start:.1f}s")
+    
+    # ── Step 3: Run V2 extraction ──
+    print("\nStep 3: Running V2 extraction...")
+    
+    from citysignal_v2.pipeline import extract_all_features
+    
+    v2_results = extract_all_features(
+        signal_id=SIGNAL_ID,
+        year=YEAR, month=MONTH, day=DAY,
+        cwd=cwd,
+        relative_interim=rel_interim,
+        relative_production=rel_production,
+        suppress_errors=True
+    )
+    
+    t_v2 = time.time()
+    print(f"  V2 extracted {len(v2_results)} features in {t_v2 - t_profiles:.1f}s")
+    for name, df in v2_results.items():
+        print(f"    {name}: {len(df)} rows, {len(df.columns)} cols")
+    
+    # ── Step 4: Compare V1 vs V2 ──
+    print(f"\nStep 4: Comparing V1 vs V2 outputs...\n")
+    
+    results = []
+    for feature_name in FEATURE_MAP:
+        df_v1 = load_v1_output(feature_name)
+        df_v2 = v2_results.get(feature_name)
+        
+        comparison = compare_dataframes(df_v1, df_v2, feature_name)
+        results.append(comparison)
+        
+        status_icon = {
+            'MATCH': '✅', 'ROW_COUNT_DIFFERS': '⚠️', 'VALUES_DIFFER': '❌',
+            'V2_EMPTY': '⏭️', 'V1_MISSING': '❓', 'BOTH_EMPTY': '⬜',
+        }.get(comparison['status'], '❓')
+        
+        print(f"  {status_icon} {feature_name:25s} | "
+              f"rows: {comparison['v1_rows']:4d} vs {comparison['v2_rows']:4d} | "
+              f"cols match: {comparison['matching_cols']}/{comparison['common_cols']} | "
+              f"status: {comparison['status']}")
+        
+        if comparison['mismatched_cols']:
+            for mc in comparison['mismatched_cols'][:5]:
+                print(f"     └─ {mc}")
+        if comparison['v1_only_cols']:
+            print(f"     └─ v1-only: {comparison['v1_only_cols'][:8]}")
+        if comparison['v2_only_cols']:
+            print(f"     └─ v2-only: {comparison['v2_only_cols'][:8]}")
+    
+    # ── Summary ──
+    print(f"\n{'='*70}")
+    print(f"SUMMARY")
+    print(f"{'='*70}")
+    
+    n_match = sum(1 for r in results if r['status'] == 'MATCH')
+    n_value_diff = sum(1 for r in results if r['status'] == 'VALUES_DIFFER')
+    n_row_diff = sum(1 for r in results if r['status'] == 'ROW_COUNT_DIFFERS')
+    n_empty = sum(1 for r in results if r['status'] in ('V2_EMPTY', 'BOTH_EMPTY', 'V1_MISSING'))
+    
+    total_elapsed = time.time() - t_start
+    print(f"  ✅ Exact match:        {n_match}")
+    print(f"  ⚠️  Row count differs:  {n_row_diff}")
+    print(f"  ❌ Value differences:   {n_value_diff}")
+    print(f"  ⏭️  Empty/skipped:      {n_empty}")
+    print(f"  Total features:        {len(results)}")
+    print(f"  Total time:            {total_elapsed:.1f}s")
+    print(f"{'='*70}")
+
+
+if __name__ == "__main__":
+    main()

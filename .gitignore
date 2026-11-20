@@ -1,0 +1,43 @@
+# Environments and local credentials
+/citysignal/
+/.venv/
+/venv/
+/scripts/activate
+.env
+.env.*
+!.env.example
+/.aws/
+
+# Python build and test artifacts
+__pycache__/
+*.py[cod]
+*.pkl
+*.pkl.gz
+*.pickle
+.pytest_cache/
+*.egg-info/
+/build/
+/dist/
+
+# Operational data and generated output; test fixtures remain eligible.
+/data/
+/logs/
+/temp/
+/scratch/
+/plot/results/
+/plot/*.html
+/plot/*.png
+/plot/*.csv
+/feature_extractor/test_red_running.csv
+*.log
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
+*.vsix
+/ATSPM_Overlab.zip
+/incomplete_combinations.csv
+/test_red_running.csv
+/distribution_comparison.png

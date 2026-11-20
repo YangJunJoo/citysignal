@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citysignal"
+dynamic = ["version"]
+description = "ATSPM signal profiles, traffic feature extraction and checked processing"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.2,<3",
+    "pyarrow>=14",
+    "requests>=2.32",
+    "tqdm>=4.66",
+    "PyYAML>=6",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+reports = ["beautifulsoup4>=4.12", "selenium>=4", "webdriver-manager>=4"]
+operations = ["psutil>=5", "schedule>=1"]
+
+[project.scripts]
+citysignal = "citysignal.cli:extract"
+citysignal-extract = "citysignal.cli:extract"
+citysignal-pipeline = "citysignal.cli:pipeline"
+atspm-extract = "feature_extractor.process_local_atspm:main"
+atspm-pipeline = "run_pipeline:main"
+
+[project.urls]
+Repository = "https://github.com/YangJunJoo/citysignal"
+Issues = "https://github.com/YangJunJoo/citysignal/issues"
+
+[tool.setuptools]
+py-modules = ["run_pipeline"]
+
+[tool.setuptools.package-dir]
+citysignal = "src/citysignal"
+
+[tool.setuptools.dynamic]
+version = {attr = "citysignal.__version__"}
+
+[tool.setuptools.packages.find]
+where = [".", "src"]
+include = ["citysignal*", "feature_extractor*", "data_downloader*"]
+exclude = ["*.tests", "*.tests.*"]
+namespaces = false

@@ -1,0 +1,418 @@
+"""
+Full column-level equivalence audit: citysignal v1 vs v2.
+
+Runs both v1 and v2 extraction in-memory on the same signal-day,
+then compares EVERY column of EVERY feature.
+
+Includes: SPaT, split_failure, conflict, conflict_propensity
+Also: per-feature timing comparison.
+"""
+
+import sys
+import os
+import time
+import logging
+import warnings
+import shutil
+import tempfile
+
+warnings.simplefilter('ignore')
+
+# Add project root first, citysignal venv last
+sys.path.insert(0, '/home/ya195253/YJ/python_scripts/ATSPM')
+sys.path.append('/home/ya195253/YJ/python_scripts/ATSPM/citysignal/Lib/site-packages')
+
+import pandas as pd
+import numpy as np
+
+# ── Configuration ──
+SIGNAL_ID = "1245"
+YEAR, MONTH, DAY = 2026, 1, 7
+DATE_STR = f"{YEAR}-{MONTH:02d}-{DAY:02d}"
+
+EVENT_DIR = "/data2/ATSPM/raw_data"
+CONFIG_DIR = "/data2/ATSPM/config_data/signal_config_2025/lanes"
+OUTPUT_DIR = "/data2/ATSPM/processed_data"
+
+# v1 feature name -> (v1_method, v1_kwargs, v2_name)
+V1_FEATURES = [
+    ("extract_spat",                {},                                        "spat"),
+    ("extract_volume",              {"with_countbar": False},                  "volume"),
+    ("extract_headway",             {},                                        "headway"),
+    ("extract_occupancy",           {},                                        "occupancy"),
+    ("extract_gap",                 {"with_stopbar": True},                    "gap"),
+    ("extract_gap",                 {"with_stopbar": False},                   "pet"),
+    ("extract_red_running",         {"with_countbar": False},                  "red_running"),
+    ("extract_dilemma_running",     {"with_countbar": False},                  "dilemma_running"),
+    ("extract_shockwave",           {},                                        "shockwave"),
+    ("extract_pedestrian_activity", {},                                        "pedestrian_activity"),
+    ("extract_pedestrian_delay",    {},                                        "pedestrian_delay"),
+    ("extract_split_failure",       {"purdue_standard": True},                 "split_failure"),
+    ("extract_conflict",            {},                                        "conflict"),
+    ("extract_conflict_propensity", {},                                        "conflict_propensity"),
+]
+
+
+def compare_all_columns(df_v1, df_v2, feature_name):
+    """Compare ALL columns between v1 and v2 DataFrames."""
+    if df_v1 is None or len(df_v1) == 0:
+        if df_v2 is None or len(df_v2) == 0:
+            return {"status": "BOTH_EMPTY", "details": []}
+        return {"status": "V1_EMPTY", "details": [f"v2 has {len(df_v2)} rows, v1 is empty"]}
+    if df_v2 is None or len(df_v2) == 0:
+        return {"status": "V2_EMPTY", "details": [f"v1 has {len(df_v1)} rows, v2 is empty"]}
+
+    details = []
+    
+    # 1. Check row count
+    if len(df_v1) != len(df_v2):
+        details.append(f"ROW COUNT MISMATCH: v1={len(df_v1)} vs v2={len(df_v2)}")
+        return {"status": "ROW_MISMATCH", "details": details}
+
+    v1_cols = set(df_v1.columns)
+    v2_cols = set(df_v2.columns)
+
+    # 2. Report v1-only columns
+    v1_only = sorted(v1_cols - v2_cols)
+    if v1_only:
+        details.append(f"MISSING IN V2 ({len(v1_only)} cols): {v1_only}")
+
+    # 3. Report v2-only columns
+    v2_only = sorted(v2_cols - v1_cols)
+    if v2_only:
+        details.append(f"EXTRA IN V2 ({len(v2_only)} cols): {v2_only}")
+
+    # 4. Check values of common columns
+    common = sorted(v1_cols & v2_cols)
+    skip = {'signalID', 'cycleNo', 'cycleBegin', 'cycleEnd', 'cycleLength', 'date'}
+    value_cols = [c for c in common if c not in skip]
+
+    # Align by cycleNo
+    if 'cycleNo' in common:
+        df_v1 = df_v1.sort_values('cycleNo').reset_index(drop=True)
+        df_v2 = df_v2.sort_values('cycleNo').reset_index(drop=True)
+    else:
+        df_v1 = df_v1.reset_index(drop=True)
+        df_v2 = df_v2.reset_index(drop=True)
+
+    mismatched_values = []
+    for col in value_cols:
+        try:
+            v1_vals = df_v1[col]
+            v2_vals = df_v2[col]
+
+            if v1_vals.dtype == 'O' or v2_vals.dtype == 'O':
+                match = (v1_vals.astype(str) == v2_vals.astype(str)).all()
+            elif pd.api.types.is_numeric_dtype(v1_vals) and pd.api.types.is_numeric_dtype(v2_vals):
+                match = np.allclose(
+                    v1_vals.fillna(-999).values.astype(float),
+                    v2_vals.fillna(-999).values.astype(float),
+                    rtol=1e-3, atol=1e-3, equal_nan=True
+                )
+            else:
+                match = (v1_vals == v2_vals).all()
+
+            if not match:
+                if pd.api.types.is_numeric_dtype(v1_vals) and pd.api.types.is_numeric_dtype(v2_vals):
+                    diff = (v1_vals.fillna(0) - v2_vals.fillna(0)).abs()
+                    mismatched_values.append(f"  {col}: max_diff={diff.max():.6f}, mean_diff={diff.mean():.6f}")
+                else:
+                    n_diff = (v1_vals.astype(str) != v2_vals.astype(str)).sum()
+                    mismatched_values.append(f"  {col}: {n_diff}/{len(v1_vals)} rows differ")
+        except Exception as e:
+            mismatched_values.append(f"  {col}: ERROR {str(e)[:60]}")
+
+    if mismatched_values:
+        details.append(f"VALUE MISMATCHES ({len(mismatched_values)} cols):")
+        details.extend(mismatched_values)
+
+    if not v1_only and not v2_only and not mismatched_values:
+        status = "EXACT_MATCH"
+    elif not mismatched_values and (v1_only or v2_only):
+        status = "COLUMN_DIFF"
+    else:
+        status = "VALUE_DIFF"
+
+    return {"status": status, "details": details, 
+            "v1_cols": len(v1_cols), "v2_cols": len(v2_cols),
+            "common_cols": len(common), "v1_only_count": len(v1_only),
+            "v2_only_count": len(v2_only), "value_mismatches": len(mismatched_values)}
+
+
+def main():
+    logging.basicConfig(level=logging.WARNING)
+
+    print(f"{'='*80}")
+    print(f"FULL COLUMN-LEVEL EQUIVALENCE AUDIT (14 features + timing)")
+    print(f"Signal: {SIGNAL_ID}  Date: {DATE_STR}")
+    print(f"{'='*80}\n")
+
+    # ── Setup paths ──
+    import citysignal.components.feature_extraction.feature_extraction as fe
+
+    abs_event_dir = os.path.abspath(EVENT_DIR)
+    abs_output_dir = os.path.abspath(OUTPUT_DIR)
+
+    try:
+        common_path = os.path.commonpath([abs_event_dir, abs_output_dir])
+        rel_interim = os.path.relpath(abs_event_dir, common_path)
+        rel_production = os.path.relpath(abs_output_dir, common_path)
+        cwd = common_path
+    except (ValueError, OSError):
+        cwd = abs_event_dir
+        rel_interim = ""
+        rel_production = os.path.relpath(abs_output_dir, abs_event_dir)
+
+    fe.cwd = cwd
+    fe.relative_interim_database_dirpath = rel_interim
+    fe.relative_production_database_dirpath = rel_production
+
+    print(f"  CWD: {cwd}")
+    print(f"  Rel interim: '{rel_interim}', Rel production: '{rel_production}'")
+
+    # Ensure config exists
+    config_dst = os.path.join(EVENT_DIR, "fdot_d5", "signal_config", f"{SIGNAL_ID}.csv")
+    if not os.path.exists(config_dst):
+        config_src = os.path.join(CONFIG_DIR, f"{SIGNAL_ID}.csv")
+        df_config = pd.read_csv(config_src)
+        rename_map = {
+            "Approach": "approach", "Lane Type": "laneType", "Width": "width",
+            "Length": "length", "Lane No. from Left": "laneNoFromLeft", "Type": "type",
+            "Channel": "channelNo", "Phase": "phaseNo", "Stopbar Distance": "stopBarDistance",
+            "Slot Number": "slotNo"
+        }
+        df_config = df_config.rename(columns=rename_map)
+        os.makedirs(os.path.dirname(config_dst), exist_ok=True)
+        df_config.to_csv(config_dst, index=False)
+
+    # ── Generate profiles (required by both v1 and v2) ──
+    print("\nStep 1: Generating cycle/phase profiles...")
+    t0 = time.time()
+
+    from citysignal.components.feature_extraction.feature_extraction import TrafficSignalProfile
+    profile = TrafficSignalProfile(day=DAY, month=MONTH, year=YEAR)
+
+    for prof_type in ["vehicle_signal", "pedestrian_signal"]:
+        try:
+            profile.extract_phase_profile(signal_id=SIGNAL_ID, event_type=prof_type)
+        except Exception as e:
+            print(f"  Phase profile ({prof_type}): {e}")
+        try:
+            profile.extract_cycle_profile(signal_id=SIGNAL_ID, event_type=prof_type)
+        except Exception as e:
+            pass
+    
+    print(f"  Profiles: {time.time()-t0:.1f}s")
+
+    # ── Step 2: Run V1 extraction ──
+    print("\nStep 2: Running V1 extraction...")
+
+    from citysignal.components.feature_extraction.feature_extraction import TrafficFeatureExtract
+    v1_traffic = TrafficFeatureExtract(day=DAY, month=MONTH, year=YEAR)
+
+    v1_results = {}
+    v1_times = {}
+    v1_total_start = time.time()
+
+    for method_name, kwargs, v2_name in V1_FEATURES:
+        try:
+            t_feat = time.time()
+            method = getattr(v1_traffic, method_name)
+            result = method(signal_id=SIGNAL_ID, **kwargs)
+            elapsed = time.time() - t_feat
+            v1_times[v2_name] = elapsed
+            
+            if result is not None and isinstance(result, pd.DataFrame):
+                v1_results[v2_name] = result
+                print(f"  {v2_name}: {len(result)} rows, {len(result.columns)} cols ({elapsed:.2f}s)")
+            else:
+                # Try loading from disk
+                feature_type_map = {
+                    'spat': ('vehicle_traffic', 'spat'),
+                    'volume': ('vehicle_traffic', 'volume'),
+                    'headway': ('vehicle_traffic', 'headway'),
+                    'occupancy': ('vehicle_traffic', 'occupancy'),
+                    'gap': ('vehicle_traffic', 'gap'),
+                    'pet': ('vehicle_traffic', 'gap'),
+                    'red_running': ('vehicle_traffic', 'red_running'),
+                    'dilemma_running': ('vehicle_traffic', 'dilemma_running'),
+                    'shockwave': ('vehicle_traffic', 'shockwave'),
+                    'pedestrian_activity': ('pedestrian_traffic', 'activity'),
+                    'pedestrian_delay': ('pedestrian_traffic', 'delay'),
+                    'split_failure': ('vehicle_traffic', 'split_failure'),
+                    'conflict': ('vehicle_traffic', 'conflict'),
+                    'conflict_propensity': ('vehicle_traffic', 'conflict_propensity'),
+                }
+                feature_type, feature_folder = feature_type_map[v2_name]
+                
+                path = os.path.join(OUTPUT_DIR, "fdot_d5", "feature_extraction", "feature", "cycle",
+                                   feature_type, feature_folder, SIGNAL_ID, f"{DATE_STR}.pkl")
+                if os.path.exists(path):
+                    loaded = pd.read_pickle(path)
+                    v1_results[v2_name] = loaded
+                    print(f"  {v2_name}: {len(loaded)} rows, {len(loaded.columns)} cols (from disk, {elapsed:.2f}s)")
+                else:
+                    v1_results[v2_name] = pd.DataFrame()
+                    print(f"  {v2_name}: EMPTY (no output, {elapsed:.2f}s)")
+        except Exception as e:
+            v1_results[v2_name] = pd.DataFrame()
+            v1_times[v2_name] = 0
+            print(f"  {v2_name}: ERROR: {e}")
+
+    v1_total = time.time() - v1_total_start
+    print(f"\n  V1 TOTAL: {v1_total:.1f}s")
+
+    # ── Step 3: Run V2 extraction ──
+    print("\nStep 3: Running V2 extraction...")
+    
+    from citysignal_v2.data_loader import SignalDataCache
+
+    # Time data loading separately
+    t_load = time.time()
+    cache = SignalDataCache(
+        signal_id=SIGNAL_ID,
+        year=YEAR, month=MONTH, day=DAY,
+        cwd=cwd,
+        relative_interim=rel_interim,
+        relative_production=rel_production
+    )
+    load_time = time.time() - t_load
+
+    # Time each v2 feature individually
+    from citysignal_v2.extractors.spat import extract_spat
+    from citysignal_v2.extractors.volume import extract_volume
+    from citysignal_v2.extractors.headway import extract_headway
+    from citysignal_v2.extractors.gap import extract_gap
+    from citysignal_v2.extractors.occupancy import extract_occupancy
+    from citysignal_v2.extractors.red_running import extract_red_running, extract_dilemma_running
+    from citysignal_v2.extractors.shockwave import extract_shockwave
+    from citysignal_v2.extractors.pedestrian import extract_pedestrian_activity, extract_pedestrian_delay
+    from citysignal_v2.extractors.secondary import extract_split_failure, extract_conflict, extract_conflict_propensity
+
+    v2_extractors = [
+        ("spat",                 lambda: extract_spat(cache)),
+        ("volume",               lambda: extract_volume(cache, with_countbar=False)),
+        ("headway",              lambda: extract_headway(cache)),
+        ("occupancy",            lambda: extract_occupancy(cache)),
+        ("gap",                  lambda: extract_gap(cache, with_stopbar=True)),
+        ("pet",                  lambda: extract_gap(cache, with_stopbar=False)),
+        ("red_running",          lambda: extract_red_running(cache, with_countbar=False)),
+        ("dilemma_running",      lambda: extract_dilemma_running(cache, with_countbar=False)),
+        ("shockwave",            lambda: extract_shockwave(cache)),
+        ("pedestrian_activity",  lambda: extract_pedestrian_activity(cache)),
+        ("pedestrian_delay",     lambda: extract_pedestrian_delay(cache)),
+    ]
+
+    v2_results = {}
+    v2_times = {}
+    v2_total_start = time.time()
+
+    for name, extractor in v2_extractors:
+        try:
+            t_feat = time.time()
+            v2_results[name] = extractor()
+            elapsed = time.time() - t_feat
+            v2_times[name] = elapsed
+            print(f"  {name}: {len(v2_results[name])} rows, {len(v2_results[name].columns)} cols ({elapsed:.2f}s)")
+        except Exception as e:
+            v2_results[name] = pd.DataFrame()
+            v2_times[name] = 0
+            print(f"  {name}: ERROR: {e}")
+
+    # Secondary features (depend on primary)
+    secondary_extractors = [
+        ("split_failure",        lambda: extract_split_failure(cache, v2_results.get('spat', pd.DataFrame()), v2_results.get('occupancy', pd.DataFrame()), purdue_standard=True)),
+        ("conflict",             lambda: extract_conflict(cache, v2_results.get('headway', pd.DataFrame()))),
+        ("conflict_propensity",  lambda: extract_conflict_propensity(cache, v2_results.get('volume', pd.DataFrame()), v2_results.get('pedestrian_activity', pd.DataFrame()))),
+    ]
+
+    for name, extractor in secondary_extractors:
+        try:
+            t_feat = time.time()
+            v2_results[name] = extractor()
+            elapsed = time.time() - t_feat
+            v2_times[name] = elapsed
+            print(f"  {name}: {len(v2_results[name])} rows, {len(v2_results[name].columns)} cols ({elapsed:.2f}s)")
+        except Exception as e:
+            v2_results[name] = pd.DataFrame()
+            v2_times[name] = 0
+            print(f"  {name}: ERROR: {e}")
+
+    v2_total = time.time() - v2_total_start
+    print(f"\n  V2 data load: {load_time:.2f}s")
+    print(f"  V2 extraction: {v2_total:.1f}s")
+    print(f"  V2 TOTAL (load+extract): {load_time + v2_total:.1f}s")
+
+    # ── Step 4: Compare EVERY column ──
+    print(f"\n{'='*80}")
+    print("Step 4: DETAILED COLUMN-BY-COLUMN COMPARISON")
+    print(f"{'='*80}\n")
+
+    all_pass = True
+    for _, _, v2_name in V1_FEATURES:
+        df_v1 = v1_results.get(v2_name, pd.DataFrame())
+        df_v2 = v2_results.get(v2_name, pd.DataFrame())
+
+        result = compare_all_columns(df_v1, df_v2, v2_name)
+        status = result["status"]
+        
+        icon = {
+            "EXACT_MATCH": "✅",
+            "COLUMN_DIFF": "⚠️",
+            "VALUE_DIFF": "❌",
+            "ROW_MISMATCH": "❌",
+            "V1_EMPTY": "⬜",
+            "V2_EMPTY": "⏭️",
+            "BOTH_EMPTY": "⬜",
+        }.get(status, "❓")
+
+        v1c = result.get("v1_cols", 0)
+        v2c = result.get("v2_cols", 0)
+        common = result.get("common_cols", 0)
+        v1_only = result.get("v1_only_count", 0)
+        v2_only = result.get("v2_only_count", 0)
+
+        print(f"{icon} {v2_name:25s} | v1:{v1c:3d} cols | v2:{v2c:3d} cols | common:{common:3d} | "
+              f"v1-only:{v1_only:2d} | v2-only:{v2_only:2d} | {status}")
+        
+        for detail in result.get("details", []):
+            print(f"   {detail}")
+        
+        if status not in ("EXACT_MATCH", "BOTH_EMPTY"):
+            all_pass = False
+        
+        print()
+
+    # ── Step 5: Timing Comparison ──
+    print(f"{'='*80}")
+    print("Step 5: TIMING COMPARISON (seconds)")
+    print(f"{'='*80}\n")
+    
+    print(f"{'Feature':<25s} | {'V1 (s)':>8s} | {'V2 (s)':>8s} | {'Speedup':>8s}")
+    print(f"{'-'*25}-+-{'-'*8}-+-{'-'*8}-+-{'-'*8}")
+    
+    for _, _, v2_name in V1_FEATURES:
+        t1 = v1_times.get(v2_name, 0)
+        t2 = v2_times.get(v2_name, 0)
+        if t2 > 0:
+            speedup = f"{t1/t2:.2f}x"
+        else:
+            speedup = "N/A"
+        print(f"{v2_name:<25s} | {t1:8.2f} | {t2:8.2f} | {speedup:>8s}")
+    
+    print(f"{'-'*25}-+-{'-'*8}-+-{'-'*8}-+-{'-'*8}")
+    print(f"{'TOTAL (extract only)':<25s} | {v1_total:8.2f} | {v2_total:8.2f} | {v1_total/v2_total:.2f}x" if v2_total > 0 else "N/A")
+    print(f"{'V2 data load':<25s} | {'N/A':>8s} | {load_time:8.2f} |")
+    print(f"{'TOTAL (incl. load)':<25s} | {v1_total:8.2f} | {load_time+v2_total:8.2f} | {v1_total/(load_time+v2_total):.2f}x" if (load_time+v2_total) > 0 else "N/A")
+
+    # ── Summary ──
+    print(f"\n{'='*80}")
+    if all_pass:
+        print("🎉 ALL FEATURES MATCH EXACTLY (same rows, same columns, same values)")
+    else:
+        print("⚠️  SOME FEATURES HAVE DIFFERENCES — see details above")
+    print(f"{'='*80}")
+
+
+if __name__ == "__main__":
+    main()

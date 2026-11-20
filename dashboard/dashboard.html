@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATSPM Pipeline Dashboard & Controller</title>
+    <!-- Modern Premium Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(20, 28, 47, 0.6);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --font-family: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            padding: 2rem;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 90%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Glassmorphism Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo-section h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-weight: 500;
+            color: var(--accent-green);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Widgets Grid */
+        .widgets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .widget-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.8rem;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .widget-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .widget-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .widget-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0.2rem 0;
+        }
+
+        .widget-sub {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Content Sections */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1.5fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 968px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Form Controls */
+        .form-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus {
+            border-color: var(--accent-blue);
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .checkbox-container input {
+            accent-color: var(--accent-blue);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .btn {
+            font-family: var(--font-family);
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+        }
+        .btn-primary:disabled {
+            background: #1f2937;
+            color: #6b7280;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+        }
+
+        /* Progress Table */
+        .progress-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .progress-table th {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .progress-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            padding: 0.85rem 0.8rem;
+            vertical-align: middle;
+        }
+        .progress-table tr:hover td {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        /* Activity Feed list */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 480px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .activity-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .activity-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .activity-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .activity-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .activity-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .activity-signal {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .activity-meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-failed {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-skipped {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-yellow);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-running {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            animation: badge-pulse 1.5s infinite;
+        }
+
+        .badge-pending {
+            background: rgba(156, 163, 175, 0.1);
+            color: var(--text-secondary);
+            border: 1px solid rgba(156, 163, 175, 0.2);
+        }
+
+        @keyframes badge-pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        /* Chart container */
+        .chart-container {
+            width: 100%;
+            height: 380px;
+            position: relative;
+        }
+
+        /* Calendar CSS */
+        .calendar-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .calendar-nav-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .calendar-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        .calendar-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.4rem;
+        }
+        .calendar-day-header {
+            text-align: center;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 0.3rem 0;
+        }
+        .calendar-day-cell {
+            aspect-ratio: 1.1;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .calendar-day-cell:hover:not(.out-of-bounds):not(.other-month) {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .calendar-day-cell.other-month {
+            opacity: 0.15;
+            cursor: default;
+            pointer-events: none;
+        }
+        .calendar-day-cell.out-of-bounds {
+            background: rgba(255, 255, 255, 0.01);
+            border-color: rgba(255, 255, 255, 0.02);
+            opacity: 0.15;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .calendar-day-number {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        /* State indicator styles */
+        .status-red {
+            border-left: 3px solid var(--accent-red);
+            background: rgba(239, 68, 68, 0.03);
+        }
+        .status-red:hover:not(.out-of-bounds):not(.other-month) {
+            background: rgba(239, 68, 68, 0.07);
+        }
+        .status-orange {
+            border-left: 3px solid var(--accent-yellow);
+            background: rgba(245, 158, 11, 0.03);
+        }
+        .status-orange:hover:not(.out-of-bounds):not(.other-month) {
+            background: rgba(245, 158, 11, 0.07);
+        }
+        .status-green {
+            border-left: 3px solid var(--accent-green);
+            background: rgba(16, 185, 129, 0.03);
+        }
+        .status-green:hover:not(.out-of-bounds):not(.other-month) {
+            background: rgba(16, 185, 129, 0.07);
+        }
+        .status-blue {
+            border-left: 3px solid var(--accent-blue);
+            background: rgba(59, 130, 246, 0.07);
+            animation: cell-pulse 2s infinite;
+        }
+        .status-blue:hover:not(.out-of-bounds):not(.other-month) {
+            background: rgba(59, 130, 246, 0.11);
+        }
+        @keyframes cell-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
+            70% { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        /* Hover tooltip container styling */
+        .calendar-day-cell .tooltip-content {
+            visibility: hidden;
+            width: 190px;
+            background-color: #111827;
+            color: #f3f4f6;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.6rem;
+            position: absolute;
+            z-index: 100;
+            bottom: 115%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s, visibility 0.2s;
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.5);
+            font-size: 0.75rem;
+            pointer-events: none;
+            line-height: 1.3;
+        }
+        .calendar-day-cell:hover:not(.out-of-bounds):not(.other-month) .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip-title {
+            font-weight: 700;
+            font-size: 0.78rem;
+            margin-bottom: 0.3rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.2rem;
+            color: #60a5fa;
+        }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.15rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Dashboard Header -->
+        <header>
+            <div class="logo-section">
+                <h1>📈 ATSPM Pipeline Dashboard</h1>
+            </div>
+            <div class="status-dot-wrapper">
+                <span class="status-dot"></span>
+                <span id="live-label">LIVE UPDATING</span>
+            </div>
+        </header>
+
+        <!-- Widgets row -->
+        <div class="widgets-grid">
+            <div class="widget-card">
+                <div class="widget-title">Signals Processed Today</div>
+                <div class="widget-value" id="val-signals-success" style="color: var(--accent-green);">0</div>
+                <div class="widget-sub" id="val-elapsed">Elapsed: 0s</div>
+            </div>
+            
+            <div class="widget-card">
+                <div class="widget-title">Processing Speed</div>
+                <div class="widget-value" id="val-speed" style="color: var(--accent-blue);">0.0</div>
+                <div class="widget-sub">signals / minute</div>
+            </div>
+
+            <div class="widget-card">
+                <div class="widget-title">Features Success (This Run)</div>
+                <div class="widget-value" id="val-features-success" style="color: #60a5fa;">0</div>
+                <div class="widget-sub" id="val-features-failed">Failed Features: 0</div>
+            </div>
+
+            <div class="widget-card">
+                <div class="widget-title">Total Database Records</div>
+                <div class="widget-value" id="val-db-total">0</div>
+                <div class="widget-sub">Accumulated DB features</div>
+            </div>
+        </div>
+
+        <!-- Main section layout -->
+        <div class="content-grid">
+            <!-- Left Column: Controller -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="panel-card" style="display: flex; flex-direction: column; gap: 1.2rem;">
+                    <div class="panel-header">
+                        <div class="panel-title">🚀 Pipeline Controller</div>
+                        <div id="pipeline-run-status" class="badge badge-pending">IDLE</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.3rem;">START DATE</label>
+                            <input type="date" id="pipeline-start-date" class="form-input" value="2026-05-27">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.3rem;">END DATE</label>
+                            <input type="date" id="pipeline-end-date" class="form-input" value="2026-06-16">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">PIPELINE STAGES TO EXECUTE</label>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="chk-download" checked> Download
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="chk-split" checked> Split by Signal
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="chk-extract" checked> Feature Extraction
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-top: 0.1rem; border-top: 1px dashed var(--border-color); padding-top: 0.8rem;">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="chk-autoresume" checked> 🔄 Auto-Resume on Crash (Max 3 retries)
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 1rem;">
+                        <button id="btn-run-pipeline" class="btn btn-primary" style="flex: 1;">Start Pipeline Run</button>
+                        <button id="btn-stop-pipeline" class="btn btn-danger" style="display: none; flex: 1;">Stop Pipeline</button>
+                    </div>
+                    <div id="run-info-banner" style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 0.8rem; border-radius: 8px; font-size: 0.85rem;">
+                        Active Run Info: <span id="run-info-details" style="font-weight: 500;">Download, Split, Extract (2026-05-27 to 2026-06-16)</span> • <span id="run-info-elapsed" style="color: var(--accent-blue);">Elapsed: 1m 20s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Activity Log -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">Recent Activity Feed</div>
+                </div>
+                <div class="activity-list" id="activity-feed">
+                    <div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">
+                        Loading activity logs...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Console Row -->
+        <div class="widgets-grid" style="grid-template-columns: 1fr;">
+            <div class="panel-card" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="panel-header">
+                    <div class="panel-title">🖥 Live Output Console</div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <label class="checkbox-container" style="font-size: 0.8rem; color: var(--text-secondary);">
+                            <input type="checkbox" id="chk-autoscroll" checked> Auto-scroll
+                        </label>
+                        <button id="btn-clear-console" style="background: none; border: none; color: var(--text-secondary); font-size: 0.8rem; cursor: pointer; font-family: var(--font-family); font-weight: 500;">Clear</button>
+                    </div>
+                </div>
+                <pre id="console-output" style="background: #05070c; border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; color: #34d399; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; max-height: 300px;">Waiting for logs...</pre>
+            </div>
+        </div>
+
+        <!-- Progress Matrix & Chart Grid -->
+        <div class="content-grid">
+            <!-- Monthly Calendar Component -->
+            <div class="panel-card">
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <div class="panel-title">📅 Daily Progress Calendar Matrix</div>
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <button id="btn-prev-month" class="calendar-nav-btn">&lt;</button>
+                        <span id="calendar-month-year" style="font-weight: 600; font-size: 1rem; min-width: 90px; text-align: center;">June 2026</span>
+                        <button id="btn-next-month" class="calendar-nav-btn">&gt;</button>
+                    </div>
+                </div>
+                
+                <!-- Calendar Legend -->
+                <div style="display: flex; gap: 0.8rem; font-size: 0.75rem; flex-wrap: wrap; margin-bottom: 0.3rem; justify-content: flex-start; padding: 0.4rem; border-radius: 8px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color);">
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(239, 68, 68, 0.05); border-left: 3px solid var(--accent-red);"></span>
+                        <span>Pending / Failed</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(245, 158, 11, 0.05); border-left: 3px solid var(--accent-yellow);"></span>
+                        <span>Download + Split Done</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(16, 185, 129, 0.05); border-left: 3px solid var(--accent-green);"></span>
+                        <span>All Stages Done</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
+                        <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent-blue); animation: badge-pulse 1.5s infinite;"></span>
+                        <span>Running / In Progress</span>
+                    </div>
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid-body">
+                    <!-- Day headers and cells will be inserted by JS -->
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">Daily Progress History (Last 15 days)</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+        let isRunning = false;
+        let logPoller = null;
+        let currentMonthStr = '2026-06'; // Default
+
+        // Date utilities
+        const MONTH_NAMES = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        // Fetch stats from local API
+        async function fetchStats() {
+            try {
+                const response = await fetch(`/api/stats?month=${currentMonthStr}`);
+                const data = await response.json();
+                
+                if (data.selected_month) {
+                    currentMonthStr = data.selected_month;
+                }
+                
+                updateDOM(data);
+                updateChart(data.daily_progress);
+                updateCalendar(data.dates_progress);
+                updatePaginationControls();
+            } catch (error) {
+                console.error("Error fetching stats:", error);
+                document.getElementById('live-label').innerText = "DISCONNECTED";
+                document.getElementById('live-label').style.color = "var(--accent-red)";
+                document.querySelector('.status-dot').style.backgroundColor = "var(--accent-red)";
+            }
+        }
+
+        function updatePaginationControls() {
+            const parts = currentMonthStr.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            
+            document.getElementById('calendar-month-year').innerText = `${MONTH_NAMES[month - 1]} ${year}`;
+            
+            // Bounds: August 2025 (2025-08) to June 2026 (2026-06)
+            document.getElementById('btn-prev-month').disabled = (currentMonthStr <= '2025-08');
+            document.getElementById('btn-next-month').disabled = (currentMonthStr >= '2026-06');
+        }
+
+        // Navigate Months
+        function prevMonth() {
+            const parts = currentMonthStr.split('-');
+            let year = parseInt(parts[0]);
+            let month = parseInt(parts[1]);
+            month--;
+            if (month === 0) {
+                month = 12;
+                year--;
+            }
+            const newMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+            if (newMonthStr >= '2025-08') {
+                currentMonthStr = newMonthStr;
+                fetchStats();
+            }
+        }
+
+        function nextMonth() {
+            const parts = currentMonthStr.split('-');
+            let year = parseInt(parts[0]);
+            let month = parseInt(parts[1]);
+            month++;
+            if (month === 13) {
+                month = 1;
+                year++;
+            }
+            const newMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+            if (newMonthStr <= '2026-06') {
+                currentMonthStr = newMonthStr;
+                fetchStats();
+            }
+        }
+
+        // Update HTML numbers and activity feed
+        function updateDOM(data) {
+            document.getElementById('val-signals-success').innerText = data.run_signals_success;
+            document.getElementById('val-elapsed').innerText = "Elapsed: " + data.elapsed_time;
+            
+            document.getElementById('val-speed').innerText = data.speed_signals_per_min;
+            
+            document.getElementById('val-features-success').innerText = data.run_features_success;
+            document.getElementById('val-features-failed').innerText = "Failed Features: " + data.run_features_failed;
+            
+            document.getElementById('val-db-total').innerText = data.total_features_success.toLocaleString();
+            
+            document.getElementById('live-label').innerText = "LIVE UPDATING (" + data.server_time + ")";
+            document.getElementById('live-label').style.color = "var(--accent-green)";
+            document.querySelector('.status-dot').style.backgroundColor = "var(--accent-green)";
+
+            // Update activity list
+            const feed = document.getElementById('activity-feed');
+            feed.innerHTML = '';
+            
+            if (data.recent_activity.length === 0) {
+                feed.innerHTML = `<div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">No recent activities found.</div>`;
+                return;
+            }
+
+            data.recent_activity.forEach(item => {
+                let badgeClass = item.status === 'success' ? 'badge-success' : 'badge-skipped';
+                if (item.status === 'failed' || item.status === 'blocked') badgeClass = 'badge-failed';
+                if (item.status === 'skipped') badgeClass = 'badge-skipped';
+
+                const errorMsg = item.error ? `<div style="color: var(--accent-red); font-size: 0.75rem; margin-top: 0.2rem;">${item.error}</div>` : '';
+
+                const el = document.createElement('div');
+                el.className = 'activity-item';
+                el.innerHTML = `
+                    <div class="activity-info">
+                        <div class="activity-signal">Signal ${item.signal_id}</div>
+                        <div class="activity-meta">Date: ${item.date_str} • Feature: ${item.feature_name}</div>
+                        ${errorMsg}
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem;">
+                        <span class="badge ${badgeClass}">${item.status}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">${item.time}</span>
+                    </div>
+                `;
+                feed.appendChild(el);
+            });
+        }
+
+        // Render monthly calendar grid
+        function updateCalendar(datesProgress) {
+            const gridBody = document.getElementById('calendar-grid-body');
+            gridBody.innerHTML = '';
+
+            // Day Headers (Sun-Sat)
+            const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            daysOfWeek.forEach(day => {
+                const header = document.createElement('div');
+                header.className = 'calendar-day-header';
+                header.innerText = day;
+                gridBody.appendChild(header);
+            });
+
+            // Map data to date
+            const progressMap = {};
+            if (datesProgress) {
+                datesProgress.forEach(row => {
+                    progressMap[row.date] = row;
+                });
+            }
+
+            const parts = currentMonthStr.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+
+            // Calendar grid logic
+            const firstDayIndex = new Date(year, month - 1, 1).getDay(); // 0 = Sun, 1 = Mon ...
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const prevMonthDays = new Date(year, month - 1, 0).getDate();
+
+            const cells = [];
+
+            // Pad previous month
+            for (let i = firstDayIndex - 1; i >= 0; i--) {
+                const d = prevMonthDays - i;
+                let py = year;
+                let pm = month - 1;
+                if (pm === 0) { py--; pm = 12; }
+                const dateStr = `${py}-${String(pm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                cells.push({
+                    dayNumber: d,
+                    isCurrentMonth: false,
+                    dateStr: dateStr,
+                    outOfBounds: true
+                });
+            }
+
+            // Current month days
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                // Bounds constraint check
+                const outOfBounds = (dateStr < '2025-08-01' || dateStr > '2026-06-22');
+                cells.push({
+                    dayNumber: d,
+                    isCurrentMonth: true,
+                    dateStr: dateStr,
+                    outOfBounds: outOfBounds
+                });
+            }
+
+            // Pad next month
+            const remaining = 42 - cells.length;
+            for (let d = 1; d <= remaining; d++) {
+                let ny = year;
+                let nm = month + 1;
+                if (nm === 13) { ny++; nm = 1; }
+                const dateStr = `${ny}-${String(nm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                cells.push({
+                    dayNumber: d,
+                    isCurrentMonth: false,
+                    dateStr: dateStr,
+                    outOfBounds: true
+                });
+            }
+
+            // Style and build DOM for cells
+            cells.forEach(cell => {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'calendar-day-cell';
+                
+                const numEl = document.createElement('span');
+                numEl.className = 'calendar-day-number';
+                numEl.innerText = cell.dayNumber;
+                cellEl.appendChild(numEl);
+
+                if (!cell.isCurrentMonth) {
+                    cellEl.classList.add('other-month');
+                } else if (cell.outOfBounds) {
+                    cellEl.classList.add('out-of-bounds');
+                } else {
+                    // Current month and in-bounds
+                    const row = progressMap[cell.dateStr];
+                    if (row) {
+                        cellEl.classList.add(`status-${row.color}`);
+
+                        // Tooltip
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'tooltip-content';
+                        
+                        const dlColor = row.download === 'completed' ? 'var(--accent-green)' : (row.download === 'failed' ? 'var(--accent-red)' : 'var(--text-secondary)');
+                        const spColor = row.split === 'completed' ? 'var(--accent-green)' : (row.split === 'failed' ? 'var(--accent-red)' : 'var(--text-secondary)');
+                        const extColor = row.extraction.status === 'completed' ? 'var(--accent-green)' : (row.extraction.status === 'in_progress' ? 'var(--accent-blue)' : 'var(--text-secondary)');
+
+                        tooltip.innerHTML = `
+                            <div class="tooltip-title">${cell.dateStr}</div>
+                            <div class="tooltip-row">
+                                <span>Download:</span>
+                                <span style="color: ${dlColor}; font-weight: 600;">${row.download.toUpperCase()}</span>
+                            </div>
+                            <div class="tooltip-row">
+                                <span>Split:</span>
+                                <span style="color: ${spColor}; font-weight: 600;">${row.split.toUpperCase()}</span>
+                            </div>
+                            <div class="tooltip-row">
+                                <span>Extraction:</span>
+                                <span style="color: ${extColor}; font-weight: 600;">${row.extraction.status.toUpperCase()}</span>
+                            </div>
+                            <div class="tooltip-row" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">
+                                <span>Signals Extracted:</span>
+                                <span style="font-weight: 600;">${row.extraction.processed}/${row.extraction.total}</span>
+                            </div>
+                        `;
+                        cellEl.appendChild(tooltip);
+
+                        // Click to set start/end date
+                        cellEl.addEventListener('click', () => {
+                            document.getElementById('pipeline-start-date').value = cell.dateStr;
+                            document.getElementById('pipeline-end-date').value = cell.dateStr;
+                        });
+                    } else {
+                        // Fallback
+                        cellEl.classList.add('status-red');
+                    }
+                }
+                gridBody.appendChild(cellEl);
+            });
+        }
+
+        // Initialize and Update Chart.js
+        function updateChart(chartData) {
+            const labels = chartData.map(d => d.date);
+            const counts = chartData.map(d => d.signals);
+
+            if (myChart === null) {
+                const ctx = document.getElementById('progressChart').getContext('2d');
+                myChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Processed Signals',
+                            data: counts,
+                            backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            hoverBackgroundColor: 'rgba(59, 130, 246, 0.7)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.05)'
+                                },
+                                ticks: {
+                                    color: '#9ca3af'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    color: '#9ca3af',
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                myChart.data.labels = labels;
+                myChart.data.datasets[0].data = counts;
+                myChart.update();
+            }
+        }
+
+        // Fetch logs for console output
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/api/pipeline/logs?lines=300');
+                const logText = await response.text();
+                
+                const consoleOutput = document.getElementById('console-output');
+                consoleOutput.textContent = logText || "No logs generated yet...";
+                
+                // Auto-scroll logic
+                if (document.getElementById('chk-autoscroll').checked) {
+                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                }
+            } catch (error) {
+                console.error("Error fetching logs:", error);
+            }
+        }
+
+        // Fetch active pipeline run status
+        async function checkPipelineStatus() {
+            try {
+                const response = await fetch('/api/pipeline/status');
+                const state = await response.json();
+                
+                const statusBadge = document.getElementById('pipeline-run-status');
+                const runButton = document.getElementById('btn-run-pipeline');
+                const stopButton = document.getElementById('btn-stop-pipeline');
+                const runBanner = document.getElementById('run-info-banner');
+                const autoResumeCheckbox = document.getElementById('chk-autoresume');
+                
+                if (state.status === 'running' || state.status === 'resuming') {
+                    isRunning = true;
+                    if (state.status === 'resuming') {
+                        statusBadge.innerText = `🔄 RESUMING (${state.retry_count}/3)`;
+                    } else {
+                        statusBadge.innerText = '⚡ RUNNING';
+                    }
+                    statusBadge.className = 'badge badge-running';
+                    runButton.disabled = true;
+                    stopButton.style.display = 'block';
+                    
+                    // Sync checkbox state and disable it during run
+                    autoResumeCheckbox.checked = state.auto_resume;
+                    autoResumeCheckbox.disabled = true;
+                    
+                    // Update banner
+                    runBanner.style.display = 'block';
+                    const stepsText = state.steps.map(s => s.toUpperCase()).join(', ');
+                    document.getElementById('run-info-details').innerText = `${stepsText} (${state.start_date || 'default'} to ${state.end_date || 'default'})`;
+                    document.getElementById('run-info-elapsed').innerText = `Elapsed: ${state.elapsed_time}`;
+                    
+                    // Poll logs
+                    if (!logPoller) {
+                        fetchLogs();
+                        logPoller = setInterval(fetchLogs, 2000);
+                    }
+                } else {
+                    isRunning = false;
+                    statusBadge.innerText = state.status.toUpperCase();
+                    if (state.status === 'idle') {
+                        statusBadge.className = 'badge badge-pending';
+                    } else if (state.status === 'completed') {
+                        statusBadge.className = 'badge badge-success';
+                    } else if (state.status === 'partial') {
+                        statusBadge.className = 'badge badge-skipped';
+                    } else if (state.status === 'failed') {
+                        statusBadge.className = 'badge badge-failed';
+                    } else if (state.status === 'killed') {
+                        statusBadge.className = 'badge badge-skipped';
+                    }
+                    
+                    runButton.disabled = false;
+                    stopButton.style.display = 'none';
+                    runBanner.style.display = 'none';
+                    
+                    // Enable checkbox modification
+                    autoResumeCheckbox.disabled = false;
+                    
+                    // Stop log polling
+                    if (logPoller) {
+                        clearInterval(logPoller);
+                        logPoller = null;
+                        fetchLogs(); // one last fetch
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking pipeline status:", error);
+            }
+        }
+
+        // Start pipeline execution
+        async function runPipeline(forceKill = false) {
+            const start_date = document.getElementById('pipeline-start-date').value;
+            const end_date = document.getElementById('pipeline-end-date').value;
+            const auto_resume = document.getElementById('chk-autoresume').checked;
+            
+            const steps = [];
+            if (document.getElementById('chk-download').checked) steps.push('download');
+            if (document.getElementById('chk-split').checked) steps.push('split');
+            if (document.getElementById('chk-extract').checked) steps.push('extract');
+            
+            if (steps.length === 0) {
+                alert("Please select at least one pipeline stage to run.");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/pipeline/run', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        start_date,
+                        end_date,
+                        steps,
+                        force_kill: forceKill,
+                        auto_resume: auto_resume
+                    })
+                });
+                
+                if (response.status === 409) {
+                    const errorData = await response.json();
+                    if (confirm("A conflicting pipeline process (PID: " + errorData.pids.join(', ') + ") is already running outside this dashboard. Do you want to terminate it and start a new run?")) {
+                        runPipeline(true); // force kill
+                    }
+                } else if (!response.ok) {
+                    const errorData = await response.json();
+                    alert("Error starting pipeline: " + errorData.error);
+                } else {
+                    checkPipelineStatus();
+                }
+            } catch (error) {
+                console.error("Error starting pipeline:", error);
+                alert("Server error when attempting to start pipeline.");
+            }
+        }
+
+        // Stop pipeline execution
+        async function stopPipeline() {
+            if (!confirm("Are you sure you want to kill the active pipeline run? This will terminate all worker processes immediately.")) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/pipeline/stop', {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert("Error stopping pipeline: " + errorData.error);
+                } else {
+                    checkPipelineStatus();
+                }
+            } catch (error) {
+                console.error("Error stopping pipeline:", error);
+            }
+        }
+
+        // Set up event listeners
+        document.getElementById('btn-run-pipeline').addEventListener('click', () => runPipeline(false));
+        document.getElementById('btn-stop-pipeline').addEventListener('click', stopPipeline);
+        document.getElementById('btn-clear-console').addEventListener('click', () => {
+            document.getElementById('console-output').textContent = "";
+        });
+        document.getElementById('btn-prev-month').addEventListener('click', prevMonth);
+        document.getElementById('btn-next-month').addEventListener('click', nextMonth);
+
+        // Initialize Page
+        fetchStats();
+        checkPipelineStatus();
+        
+        // Fast polls for status, slow polls for general numbers
+        setInterval(fetchStats, 6000);
+        setInterval(checkPipelineStatus, 2000);
+    </script>
+</body>
+</html>

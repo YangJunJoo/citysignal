@@ -1,0 +1,10 @@
+include README.md requirements.txt
+include test_v1_v2_comparison.py verify_phase_profile_output.py run_pipeline_update.py
+recursive-include data_downloader *.md *.txt
+recursive-include tests *.py *.parquet
+recursive-include scripts *.py *.sh
+recursive-include dashboard *.py *.html
+recursive-include plot *.py
+recursive-include docs *.md *.json *.txt
+recursive-include .github *.yml
+global-exclude __pycache__ *.py[cod] *.pkl *.pkl.gz *.pickle

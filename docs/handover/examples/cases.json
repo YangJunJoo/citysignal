@@ -1,0 +1,466 @@
+{
+  "prepared_on": "2026-09-17",
+  "source_quality_is_test_assumption": true,
+  "scope_note": "Historical executor validation excerpts. Source quality was assumed valid in the original runs. These examples do not establish source coverage, current production health, or the outcome of a current run_pipeline.py execution.",
+  "cases": [
+    {
+      "signal_id": "1067",
+      "date_str": "2026-09-06",
+      "recorded_job_status": "partial",
+      "job_reason_code": "missing_phase_column",
+      "features": {
+        "vehicle_phase_profile": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "pedestrian_phase_profile": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "vehicle_cycle_profile": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "pedestrian_cycle_profile": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "spat": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "volume": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "headway": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "gap": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "pet": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "occupancy": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "red_running": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "dilemma_running": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "shockwave": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "pedestrian_activity": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "pedestrian_delay": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "split_failure": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "conflict": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        },
+        "conflict_pet": {
+          "status": "blocked",
+          "reason_code": "missing_phase_column",
+          "row_count": 0
+        }
+      },
+      "source": {
+        "path": "scratch/checked_execution_validation_20260911/sample_results.json",
+        "sha256": "a42664641a03e886cfa8a46a811f0b66716972573f87cd1a587fad914c3a482d"
+      }
+    },
+    {
+      "signal_id": "2013",
+      "date_str": "2026-09-06",
+      "recorded_job_status": "partial",
+      "job_reason_code": "invalid_phase_mapping",
+      "features": {
+        "vehicle_phase_profile": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "pedestrian_phase_profile": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "vehicle_cycle_profile": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "pedestrian_cycle_profile": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "spat": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "volume": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "headway": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "gap": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "pet": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "occupancy": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "red_running": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "dilemma_running": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "shockwave": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "pedestrian_activity": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "pedestrian_delay": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "split_failure": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "conflict": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        },
+        "conflict_pet": {
+          "status": "blocked",
+          "reason_code": "invalid_phase_mapping",
+          "row_count": 0
+        }
+      },
+      "source": {
+        "path": "scratch/checked_execution_validation_20260911/sample_results.json",
+        "sha256": "a42664641a03e886cfa8a46a811f0b66716972573f87cd1a587fad914c3a482d"
+      }
+    },
+    {
+      "signal_id": "ORC-0003",
+      "date_str": "2026-09-06",
+      "recorded_job_status": "complete",
+      "job_reason_code": "",
+      "features": {
+        "vehicle_phase_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 3922
+        },
+        "pedestrian_phase_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 340
+        },
+        "vehicle_cycle_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "pedestrian_cycle_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 336
+        },
+        "spat": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "volume": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "headway": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "gap": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "pet": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "occupancy": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "red_running": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "dilemma_running": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "shockwave": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "pedestrian_activity": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 216
+        },
+        "pedestrian_delay": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 216
+        },
+        "split_failure": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "conflict": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        },
+        "conflict_pet": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 516
+        }
+      },
+      "source": {
+        "path": "scratch/checked_execution_validation_20260911/sample_results.json",
+        "sha256": "a42664641a03e886cfa8a46a811f0b66716972573f87cd1a587fad914c3a482d"
+      }
+    },
+    {
+      "signal_id": "2435",
+      "date_str": "2026-09-06",
+      "recorded_job_status": "partial",
+      "job_reason_code": "",
+      "features": {
+        "vehicle_phase_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 2
+        },
+        "pedestrian_phase_profile": {
+          "status": "success",
+          "reason_code": "",
+          "row_count": 3
+        },
+        "vehicle_cycle_profile": {
+          "status": "no_data",
+          "reason_code": "empty_result",
+          "row_count": 0
+        },
+        "pedestrian_cycle_profile": {
+          "status": "blocked",
+          "reason_code": "dependency_unavailable",
+          "row_count": 0
+        },
+        "spat": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "volume": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "headway": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "gap": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "pet": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "occupancy": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "red_running": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "dilemma_running": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "shockwave": {
+          "status": "blocked",
+          "reason_code": "dependency_no_data",
+          "row_count": 0
+        },
+        "pedestrian_activity": {
+          "status": "blocked",
+          "reason_code": "dependency_failed",
+          "row_count": 0
+        },
+        "pedestrian_delay": {
+          "status": "blocked",
+          "reason_code": "dependency_failed",
+          "row_count": 0
+        },
+        "split_failure": {
+          "status": "blocked",
+          "reason_code": "dependency_failed",
+          "row_count": 0
+        },
+        "conflict": {
+          "status": "blocked",
+          "reason_code": "dependency_failed",
+          "row_count": 0
+        },
+        "conflict_pet": {
+          "status": "blocked",
+          "reason_code": "dependency_failed",
+          "row_count": 0
+        }
+      },
+      "source": {
+        "path": "scratch/checked_execution_validation_20260911/no_data_sample.json",
+        "sha256": "3975f598b1299d1ef228f98277eb653b48c69288adc847979047fa679f08a12d"
+      }
+    }
+  ],
+  "later_comparison_with_optional_feature": {
+    "source": {
+      "path": "scratch/citysignal_v2_cleanup_20260917/comparison.json",
+      "sha256": "e6b5299d78723ef78735fd1adbfb0b3afc35e137d0c2a0a3138492b59a1aef63"
+    },
+    "scope_note": "Later executor comparison includes all 18 default outputs plus explicitly selected conflict_propensity. The same source-quality limitation applies.",
+    "states": {
+      "ORC-0003": {
+        "vehicle_phase_profile": "success",
+        "pedestrian_phase_profile": "success",
+        "vehicle_cycle_profile": "success",
+        "pedestrian_cycle_profile": "success",
+        "spat": "success",
+        "volume": "success",
+        "headway": "success",
+        "gap": "success",
+        "pet": "success",
+        "occupancy": "success",
+        "red_running": "success",
+        "dilemma_running": "success",
+        "shockwave": "success",
+        "pedestrian_activity": "success",
+        "pedestrian_delay": "success",
+        "split_failure": "success",
+        "conflict": "success",
+        "conflict_pet": "success",
+        "conflict_propensity": "no_data"
+      },
+      "2435": {
+        "vehicle_phase_profile": "success",
+        "pedestrian_phase_profile": "success",
+        "vehicle_cycle_profile": "no_data",
+        "pedestrian_cycle_profile": "blocked",
+        "spat": "blocked",
+        "volume": "blocked",
+        "headway": "blocked",
+        "gap": "blocked",
+        "pet": "blocked",
+        "occupancy": "blocked",
+        "red_running": "blocked",
+        "dilemma_running": "blocked",
+        "shockwave": "blocked",
+        "pedestrian_activity": "blocked",
+        "pedestrian_delay": "blocked",
+        "split_failure": "blocked",
+        "conflict": "blocked",
+        "conflict_pet": "blocked",
+        "conflict_propensity": "blocked"
+      }
+    }
+  }
+}

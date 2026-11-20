@@ -1,0 +1,188 @@
+"""
+V1 vs V2 output comparison — fixed version.
+
+Saves v1 reference copies FIRST, then runs v2 and compares.
+"""
+
+import os, sys, time, warnings, shutil
+warnings.filterwarnings('ignore')
+sys.path.insert(0, '.')
+
+import pandas as pd
+import numpy as np
+import logging
+logging.basicConfig(level=logging.WARNING)
+
+
+SIGNAL_ID = '1020'
+YEAR, MONTH, DAY = 2025, 9, 1
+DATE_STR = f"{YEAR}-{MONTH:02d}-{DAY:02d}"
+
+V1_FEAT_BASE = '/data2/ATSPM/processed_data/fdot_d5/feature_extraction/feature/cycle'
+
+# Feature paths
+FEATURES = {
+    'volume':           f'{V1_FEAT_BASE}/vehicle_traffic/volume/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'headway':          f'{V1_FEAT_BASE}/vehicle_traffic/headway/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'gap':              f'{V1_FEAT_BASE}/vehicle_traffic/gap/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'pet':              f'{V1_FEAT_BASE}/vehicle_traffic/pet/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'occupancy':        f'{V1_FEAT_BASE}/vehicle_traffic/occupancy/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'red_running':      f'{V1_FEAT_BASE}/vehicle_traffic/red_running/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'dilemma_running':  f'{V1_FEAT_BASE}/vehicle_traffic/dilemma_running/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'shockwave':        f'{V1_FEAT_BASE}/vehicle_traffic/shockwave/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'spat':             f'{V1_FEAT_BASE}/vehicle_signal/spat/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'pedestrian_activity': f'{V1_FEAT_BASE}/pedestrian_traffic/activity/{SIGNAL_ID}/{DATE_STR}.pkl',
+    'pedestrian_delay':    f'{V1_FEAT_BASE}/pedestrian_traffic/delay/{SIGNAL_ID}/{DATE_STR}.pkl',
+}
+
+BACKUP_DIR = f'/tmp/v1_backup_{SIGNAL_ID}_{DATE_STR}'
+
+
+def backup_v1():
+    """Backup v1 files before v2 overwrites them."""
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    v1_data = {}
+    for name, path in FEATURES.items():
+        if os.path.exists(path):
+            backup_path = os.path.join(BACKUP_DIR, f'{name}.pkl')
+            if not os.path.exists(backup_path):
+                shutil.copy2(path, backup_path)
+            v1_data[name] = pd.read_pickle(backup_path)
+            print(f"  {name}: {len(v1_data[name])} rows, {len(v1_data[name].columns)} cols")
+        else:
+            print(f"  {name}: NOT FOUND")
+    return v1_data
+
+
+def run_v2():
+    """Run v2 extraction."""
+    from citysignal_v2.pipeline import extract_all_features
+    
+    t0 = time.time()
+    results = extract_all_features(
+        signal_id=SIGNAL_ID,
+        year=YEAR, month=MONTH, day=DAY,
+        cwd='/data2/ATSPM',
+        relative_interim='raw_data/per_signal',
+        relative_production='processed_data',
+        features=None,
+        suppress_errors=False
+    )
+    elapsed = time.time() - t0
+    print(f"  V2 extraction: {elapsed:.2f}s")
+    return results
+
+
+def compare_dataframes(name, df_v1, df_v2):
+    """Compare two DataFrames and report differences."""
+    issues = []
+    
+    if len(df_v1) != len(df_v2):
+        issues.append(f"Row count: v1={len(df_v1)}, v2={len(df_v2)}")
+    
+    cols_v1 = set(df_v1.columns)
+    cols_v2 = set(df_v2.columns)
+    
+    missing_in_v2 = cols_v1 - cols_v2
+    extra_in_v2 = cols_v2 - cols_v1
+    
+    if missing_in_v2:
+        issues.append(f"Missing in v2: {sorted(missing_in_v2)[:5]}")
+    if extra_in_v2:
+        issues.append(f"Extra in v2: {sorted(extra_in_v2)[:5]}")
+    
+    common_cols = sorted(cols_v1 & cols_v2)
+    n_rows = min(len(df_v1), len(df_v2))
+    value_mismatches = []
+    
+    for col in common_cols:
+        v1_vals = df_v1[col].iloc[:n_rows]
+        v2_vals = df_v2[col].iloc[:n_rows]
+        
+        # Skip list/object/datetime columns
+        if v1_vals.dtype == object or v2_vals.dtype == object:
+            continue
+        if np.issubdtype(v1_vals.dtype, np.datetime64):
+            continue
+        
+        try:
+            if np.issubdtype(v1_vals.dtype, np.number) and np.issubdtype(v2_vals.dtype, np.number):
+                v1_arr = v1_vals.values.astype(float)
+                v2_arr = v2_vals.values.astype(float)
+                
+                # Handle NaN comparisons
+                both_nan = np.isnan(v1_arr) & np.isnan(v2_arr)
+                either_nan = np.isnan(v1_arr) | np.isnan(v2_arr)
+                nan_mismatches = (either_nan & ~both_nan).sum()
+                
+                diff = np.abs(v1_arr - v2_arr)
+                diff[either_nan] = 0
+                
+                n_mismatches = (diff > 0.01).sum() + nan_mismatches
+                max_diff = np.nanmax(diff) if (diff > 0.01).any() else 0
+                
+                if n_mismatches > 0:
+                    value_mismatches.append((col, n_mismatches, max_diff))
+        except Exception:
+            pass
+    
+    if not issues and not value_mismatches:
+        print(f"  ✅ {name}: MATCH ({n_rows} rows, {len(common_cols)} cols)")
+        return True
+    else:
+        print(f"  ❌ {name}: MISMATCH")
+        for issue in issues:
+            print(f"      {issue}")
+        for vm in value_mismatches[:5]:
+            print(f"      Col '{vm[0]}': {vm[1]} mismatches (max_diff={vm[2]:.6f})")
+        if len(value_mismatches) > 5:
+            print(f"      ... and {len(value_mismatches)-5} more columns")
+        return False
+
+
+def restore_v1():
+    """Restore v1 files from backup after v2 has overwritten them."""
+    for name, path in FEATURES.items():
+        backup_path = os.path.join(BACKUP_DIR, f'{name}.pkl')
+        if os.path.exists(backup_path):
+            shutil.copy2(backup_path, path)
+    print("  V1 files restored from backup")
+
+
+def main():
+    print(f"=== V1 vs V2 Comparison: {SIGNAL_ID} / {DATE_STR} ===\n")
+    
+    print("1. Backing up v1 outputs...")
+    v1_data = backup_v1()
+    
+    print(f"\n2. Running V2 extraction...")
+    v2_data = run_v2()
+    for name, df in v2_data.items():
+        if len(df) > 0:
+            print(f"  {name}: {len(df)} rows, {len(df.columns)} cols")
+    
+    print("\n3. Comparing outputs...")
+    n_match, n_mismatch, n_skip = 0, 0, 0
+    
+    for name in sorted(set(list(v1_data.keys()) + list(v2_data.keys()))):
+        if name not in v1_data:
+            n_skip += 1
+            continue
+        if name not in v2_data or len(v2_data[name]) == 0:
+            print(f"  ⏭️  {name}: no v2 output")
+            n_skip += 1
+            continue
+        
+        if compare_dataframes(name, v1_data[name], v2_data[name]):
+            n_match += 1
+        else:
+            n_mismatch += 1
+    
+    print(f"\n=== Summary: {n_match} match, {n_mismatch} mismatch, {n_skip} skipped ===")
+    
+    print("\n4. Restoring v1 files...")
+    restore_v1()
+
+
+if __name__ == '__main__':
+    main()
