@@ -1,7 +1,7 @@
-"""Checked publication policy for movement-identified observations.
+"""Publish checked results under the default eight-phase operating assumption.
 
-Unmapped observations are retained in diagnostics, never silently discarded to
-make cycles pass. Missing controller evidence blocks all cycle-based measures.
+Explicit reviewed controller plans remain supported. Diagnostic observations
+are retained without inventing lane or detector identities.
 """
 import json
 from pathlib import Path
@@ -20,16 +20,21 @@ def execute_mapped_frames(signal_id, date_str, events, validation, output_dir,
                           features=None, before_publish=None, source_quality=None):
     from .checked_execution import publish_frame, _execute_cycle_frames
     selected = resolve_features(features)
-    # An explicit empty map preserves identity without guessing a barrier.
+    # Classify the observed identities before applying the selected model.
     raw_phase = build_vehicle_phase_profile(events, signal_id, date_str, barrier_map={})
     audit = assess_mapping(validation, signal_id, date_str, raw_phase.phaseNo.unique())
-    mapped = raw_phase.loc[raw_phase.phaseNo.isin(audit['movement_mappings'])].copy()
+    assumed = audit['barrier_mapping_assumed']
+    mapped = (raw_phase.copy() if assumed else
+              raw_phase.loc[raw_phase.phaseNo.isin(audit['movement_mappings'])].copy())
     diagnostic = raw_phase.loc[~raw_phase.phaseNo.isin(audit['movement_mappings'])].copy()
-    if audit['barrier_mapping_verified']:
-        mapped['barrierNo'] = mapped.phaseNo.map(audit['barrier_map']).astype(int)
+    if audit['barrier_mapping_usable']:
+        # Auxiliary IDs are preserved but do not define the eight-phase barriers.
+        mapped['barrierNo'] = mapped.phaseNo.map(audit['barrier_map']).fillna(0).astype(int)
     mapped.attrs.update(audit)
-    mapped.attrs['coverage_scope'] = 'identified_phases_in_lane_inventory'
-    diagnostic.attrs.update(audit, usage='diagnostic_only_not_for_movement_metrics')
+    mapped.attrs['coverage_scope'] = ('observed_phases_under_eight_phase_assumption' if assumed
+                                     else 'identified_phases_in_lane_inventory')
+    diagnostic.attrs.update(audit, usage='phase_identity_without_lane_mapping' if assumed
+                            else 'diagnostic_only_not_for_movement_metrics')
     if source_quality:
         attrs = dict(source_quality_scope=source_quality.get('quality_scope', 'file'),
                      source_file_status=source_quality.get('source_file_status', source_quality.get('status')),
@@ -49,9 +54,7 @@ def execute_mapped_frames(signal_id, date_str, events, validation, output_dir,
     temp.write_text(json.dumps(audit, ensure_ascii=False, default=str))
     temp.chmod(0o644)
     temp.replace(target)
-    if audit['barrier_mapping_verified'] and not mapped.empty:
-        # This route requires reviewed controller evidence; the helper uses the
-        # explicit mapped frame, not the vendor's default phase-to-barrier map.
+    if audit['barrier_mapping_usable'] and not mapped.empty:
         results = _execute_cycle_frames(signal_id, date_str, events, validation, output_dir,
                                        selected, before_publish, source_quality,
                                        mapped_phase=mapped)
@@ -66,15 +69,16 @@ def execute_mapped_frames(signal_id, date_str, events, validation, output_dir,
                 dest = output_path(output_dir, name, signal_id, date_str)
                 publish_frame(mapped, name, signal_id, dest)
                 results[name] = FeatureResult(name, 'success', data=mapped, output_file_path=str(dest),
-                                              row_count=len(mapped), message='Lane inventory mapping; historical applicability unverified.')
-        elif name.startswith('pedestrian_'):
+                                              row_count=len(mapped), message=('Observed phases retained under eight-phase assumption.'
+                                                  if assumed else 'Lane inventory mapping; historical applicability unverified.'))
+        elif name.startswith('pedestrian_') and not assumed:
             results[name] = FeatureResult(name, 'blocked', 'pedestrian_mapping_unverified')
         else:
             cap = validation.capabilities.get('features', {}).get(name, {})
             reason = audit['cycle_block_reason'] or 'dependency_unavailable'
             if cap.get('valid') is False and name not in ('vehicle_cycle_profile', 'spat'):
                 reason = cap['reason_code']
-            # No not_applicable claim can stand in for a missing verified cycle.
+            # Applicability cannot stand in for a cycle the model cannot build.
             results[name] = FeatureResult(name, 'blocked', reason,
-                'No cycle-based metric published without verified movement and dated controller mapping.')
+                'No cycle-based metric published when the selected phase model is unusable.')
     return results

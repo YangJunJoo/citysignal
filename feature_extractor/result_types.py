@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 RESULT_STATUSES = frozenset({'success', 'failed', 'no_data', 'not_applicable', 'blocked', 'skipped'})
-RULE_VERSION = 'checked-extraction-5-mapping-evidence'
+RULE_VERSION = 'checked-extraction-6-eight-phase-default'
 
 
 @dataclass

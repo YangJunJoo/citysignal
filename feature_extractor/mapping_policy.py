@@ -1,15 +1,16 @@
-"""Separate observed phase identity, lane inventory and dated controller evidence.
+"""Use the project's eight-phase model unless an explicit plan is supplied.
 
-A numerical phase is not a movement, and a lane inventory is not a ring plan.
-No default barrier assignment is admissible for checked production outputs.
+The default is an operating assumption, not verified controller evidence.
+Lane identities and detector mappings still come from the configuration.
 """
 from datetime import date
 import hashlib
 from pathlib import Path
 
 import pandas as pd
+from .profiles import DEFAULT_BARRIERS
 
-MAPPING_POLICY_VERSION = 'movement-and-controller-evidence-1'
+MAPPING_POLICY_VERSION = 'eight-phase-default-2'
 
 
 def movement_inventory(frame):
@@ -78,10 +79,16 @@ def assess_mapping(validation, signal_id, date_str, observed_phases):
     movements, unresolved = movement_inventory(validation.dataframe)
     observed = set(map(int, observed_phases))
     unknown = sorted(observed - set(movements))
-    barriers, reason, evidence = controller_evidence(validation, signal_id, date_str)
-    if not reason and unknown:
+    assumed = 'controller_mapping' not in (getattr(validation, 'decision', None) or {})
+    if assumed:
+        barriers, reason, evidence = dict(DEFAULT_BARRIERS), '', {}
+        if observed and not observed.intersection(barriers):
+            reason = 'no_observed_eight_phase'
+    else:
+        barriers, reason, evidence = controller_evidence(validation, signal_id, date_str)
+    if not assumed and not reason and unknown:
         reason = 'phase_movement_unverified'
-    if not reason and observed - set(barriers):
+    if not assumed and not reason and observed - set(barriers):
         reason = 'phase_barrier_unverified'
     return dict(mapping_policy_version=MAPPING_POLICY_VERSION,
                 signal_id=str(signal_id), date=date_str,
@@ -93,7 +100,13 @@ def assess_mapping(validation, signal_id, date_str, observed_phases):
                 unresolved_config_phases=unresolved,
                 observed_phases=sorted(observed), unmapped_observed_phases=unknown,
                 configured_without_observed_phase=sorted(set(movements) - observed),
+                mapping_basis='assumed_eight_phase' if assumed else 'reviewed_controller',
+                assumed_phase_numbers=list(range(1, 9)) if assumed else [],
+                assumed_ring_sequences=[[1, 2, 3, 4], [5, 6, 7, 8]] if assumed else [],
+                auxiliary_observed_phases=sorted(observed - set(barriers)) if assumed else [],
                 barrier_map=barriers, controller_evidence=evidence,
-                barrier_mapping_verified=not bool(reason), cycle_block_reason=reason,
-                pedestrian_mapping_status='unverified',
+                barrier_mapping_assumed=assumed,
+                barrier_mapping_usable=not bool(reason),
+                barrier_mapping_verified=not assumed and not bool(reason), cycle_block_reason=reason,
+                pedestrian_mapping_status='assumed_event_phase_identity' if assumed else 'unverified',
                 coverage_complete=False)

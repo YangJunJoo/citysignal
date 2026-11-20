@@ -14,6 +14,20 @@ CSV를 읽기 전에 공백·헤더·열·Phase·Channel·barrier 관계를 검�
 
 ## 결과와 완료 판정
 
+기본 실행은 phase 1~8과 두 ring `[1,2,3,4]`, `[5,6,7,8]`을 가정한다.
+기존 barrier 번호는 `{1,2,5,6}: 2`, `{3,4,7,8}: 1`이다.
+controller 계획·검토자·적용 기간은 기본 실행의 필수 입력이 아니다.
+차로 설정의 적용 기간 미확정도 이 가정 모드 자체의 차단 사유로 사용하지 않는다.
+가정은 `mapping_basis=assumed_eight_phase`, `barrier_mapping_assumed=true`,
+`barrier_mapping_verified=false`로 각 결과와 진단에 기록한다.
+
+관측된 phase를 보존하고 1~8 밖의 phase는 barrier 0으로 두므로 기본 cycle 경계에 영향을 주지 않는다.
+차로 inventory에 phase가 없더라도 그 관측 phase의 신호 상태를 삭제하지 않는다.
+차로·검출기 기반 특징의 실제 대응은 설정을 사용한다. 채널 번호나 특수 phase 표기는 추정하지 않는다.
+보행 이벤트는 기존 eventParam phase 연결을 사용한다.
+기본 가정에서 상충하는 녹색 구간은 기존 quarantine 정책으로 해당 cycle을 격리한다.
+명시적인 controller_mapping이 전달되면 그 기록의 식별자·적용 기간·내용 해시를 계속 검증한다.
+
 `feature_extractor/feature_registry.py`가 프로파일 4종과 특징 15종의 이름·경로·의존성을 정의한다. 기본 필수 결과는 18종이며 `conflict_propensity`는 명시적으로 요청하는 선택 특징이다. `conflict_headway`는 `conflict`의 별칭이다. PET도 필수 목록에 포함된다. 특징을 선택하면 그 의존성을 함께 실행한다.
 
 | 상태 | 의미 |
@@ -30,6 +44,9 @@ CSV를 읽기 전에 공백·헤더·열·Phase·Channel·barrier 관계를 검�
 출력은 작업마다 격리된 임시 경로에서 계산한다. 스키마·신호 ID·행 수·주기 구간·입력의 관측 시간 범위·직렬화 왕복을 검증한 뒤 파일별 `os.replace`로 게시한다. 실패한 새 시도가 과거 파일의 존재로 성공 처리되지 않는다.
 
 기존 `processing_log.db`는 보존한다. 옆의 **`pipeline_runs.sqlite3`**에 실행·시도·특징 결과를 추가 기록한다. `latest_attempts`는 최신 시도만 보여준다. 과거 파일을 동기화할 때는 `imported_unverified`로 기록하며 성공을 만들어내지 않는다. 재사용에는 입력·설정·정책·원본 품질 버전과 출력 서명이 일치해야 한다. 동일 버전의 `no_data`는 반복 계산을 생략해도 미완료 상태를 유지한다.
+
+8-phase 기본 가정을 도입한 실행 규칙은 `checked-extraction-6-eight-phase-default`다.
+이전 규칙의 `barrier_mapping_unverified` 결과는 그대로 재사용하지 않고 새 시도로 평가한다.
 
 종료 코드는 `0=complete/no_work`, `2=partial`, `1=시스템 실행 실패`, `75=다른 실행이 잠금을 보유`다. 대시보드는 부분 완료를 성공으로 집계하거나 자동 재시도하지 않는다.
 

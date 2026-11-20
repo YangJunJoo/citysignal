@@ -109,7 +109,8 @@ def _execute_cycle_frames(signal_id, date_str, events, validation, output_dir, f
             phases = results['vehicle_phase_profile'].data
             frame = build_vehicle_cycle_profile(
                 phases, signal_id, date_str,
-                conflict_policy='reject' if mapped_phase is not None else 'quarantine')
+                conflict_policy=('reject' if mapped_phase is not None and
+                                 not mapped_phase.attrs.get('barrier_mapping_assumed') else 'quarantine'))
             if mapped_phase is not None:
                 for key, value in phases.attrs.items():
                     frame.attrs.setdefault(key, value)
@@ -125,7 +126,7 @@ def _execute_cycle_frames(signal_id, date_str, events, validation, output_dir, f
                     results['pedestrian_phase_profile'].data,
                     results['vehicle_cycle_profile'].data, signal_id, date_str)),
         }
-        if mapped_phase is not None:
+        if mapped_phase is not None and not mapped_phase.attrs.get('barrier_mapping_assumed'):
             for name in selected:
                 if name.startswith('pedestrian_'):
                     results[name] = FeatureResult(name, 'blocked', 'pedestrian_mapping_unverified')
@@ -162,6 +163,15 @@ def _execute_cycle_frames(signal_id, date_str, events, validation, output_dir, f
                 result.status, result.reason_code = 'blocked', 'dependency_publication_failed'
                 result.data = None
             if result.status == 'success':
+                if mapped_phase is not None:
+                    for key in ('mapping_policy_version', 'mapping_basis', 'barrier_mapping_assumed',
+                                'barrier_mapping_verified', 'barrier_map', 'assumed_phase_numbers',
+                                'assumed_ring_sequences', 'controller_evidence',
+                                'lane_mapping_effective_date_verified', 'pedestrian_mapping_status',
+                                'unmapped_observed_phases', 'auxiliary_observed_phases',
+                                'config_source', 'config_sha256'):
+                        if key in mapped_phase.attrs:
+                            result.data.attrs[key] = mapped_phase.attrs[key]
                 if source_quality:
                     result.data.attrs.update(source_quality_scope=source_quality.get('quality_scope', 'file'),
                         source_file_status=source_quality.get('source_file_status', source_quality.get('status')),

@@ -4,7 +4,7 @@ The public package delegates to the shared extraction implementation in
 ``feature_extractor``. It never loads the retired citysignal virtual environment.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from feature_extractor import ENGINE_ID
 from .storage import read_frame, write_frame

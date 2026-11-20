@@ -174,7 +174,8 @@ def execute_job(job, settings):
         if cycle is not None and cycle.reason_code in {
                 'barrier_mapping_unverified', 'controller_mapping_invalid',
                 'controller_mapping_outside_period', 'controller_mapping_stale',
-                'phase_movement_unverified', 'phase_barrier_unverified'}:
+                'phase_movement_unverified', 'phase_barrier_unverified',
+                'no_observed_eight_phase'}:
             reason = cycle.reason_code
         if cycle is not None and cycle.data is not None and cycle.data.attrs.get('quarantined_cycle_count', 0):
             status, reason = 'partial', 'cycle_windows_quarantined'
@@ -182,7 +183,8 @@ def execute_job(job, settings):
         if source.get('quality_scope') == 'signal':
             status = 'partial'
             reason = reason or 'source_rows_quarantined'
-        if any(r.data is not None and r.data.attrs.get('mapping_policy_version') for r in results.values()):
+        if any(r.data is not None and r.data.attrs.get('mapping_policy_version') and
+               not r.data.attrs.get('barrier_mapping_assumed') for r in results.values()):
             status = 'partial'  # Lane snapshots do not prove historical applicability.
             reason = reason or 'lane_mapping_effective_date_unverified'
         # Manual split-only inputs can be extracted, but source coverage remains

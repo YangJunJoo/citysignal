@@ -47,8 +47,25 @@ NOEMI 설정 보고서를 브라우저로 수집할 때만 `.[reports]` 추가 �
 추출기 import나 일반 데이터 처리에는 브라우저 패키지를 사용하지 않습니다.
 
 운영 실행은 `checked_runner`와 `checked_execution`을 통과합니다.
-입력 품질, 설정·매핑 근거, 결과 검증을 적용한 뒤 결과를 발행합니다.
+입력 품질, 설정, 프로젝트의 8-phase 가정과 결과 검증을 적용한 뒤 결과를 발행합니다.
 v1/v2 엔진 선택 옵션은 제거되었습니다.
+
+## Phase와 cycle 계산 기준
+
+기본적으로 phase 1~8, ring `[1,2,3,4]`와 `[5,6,7,8]`을 가정합니다.
+기존 barrier 번호는 그대로 유지합니다: phase `1·2·5·6 → barrier 2`,
+phase `3·4·7·8 → barrier 1`. 별도 ring/barrier 계획이나 적용 기간 자료를 요구하지 않습니다.
+이 가정 자체나 차로 설정의 적용 기간 미확정을 이유로 계산을 차단하지 않습니다.
+
+실제 관측된 phase·상태로 cycle을 구성하며 관측되지 않은 8개 phase를 만들어 넣지 않습니다.
+1~8 밖의 관측 phase는 보존하되 barrier 0으로 두어 기본 cycle 경계를 결정하지 않게 합니다.
+차로·채널 연결은 실제 설정에서 읽으며 숫자 phase 가정으로 detector 매핑을 생성하지 않습니다.
+보행 이벤트는 기존처럼 eventParam의 phase 번호로 계산합니다.
+
+결과 Parquet의 attrs와 mapping_audit에는 `mapping_basis=assumed_eight_phase`,
+`barrier_mapping_assumed=true`, `barrier_mapping_verified=false`를 기록합니다.
+명시적인 controller_mapping을 전달한 경우에만 그 계획과 적용 기간을 별도로 검증합니다.
+관측 상태 누락·상충 cycle 격리·원본 공백·설정 오류 검사는 계속 적용합니다.
 
 ## 데이터와 검증
 
