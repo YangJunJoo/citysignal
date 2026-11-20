@@ -52,20 +52,34 @@ def discover_jobs(config):
     base = base / 'per_signal' if base.name != 'per_signal' and (base / 'per_signal').is_dir() else base
     jobs = []
     signal_dirs = [base / str(sig) for sig in config.signals] if config.signals else sorted(p for p in base.iterdir() if p.is_dir())
+    exact_date = None
+    if all((config.year, config.month, config.day)):
+        exact_date = (config.year, config.month, config.day)
+    elif getattr(config, 'start_date', None) and config.start_date == getattr(config, 'end_date', None):
+        exact_date = tuple(map(int, config.start_date.split('-')))
     for directory in signal_dirs:
-        pattern = f'atspm-{config.year}-{config.month}-{config.day}.parquet' if all((config.year, config.month, config.day)) else 'atspm-*.parquet'
-        for path in sorted(directory.glob(pattern)):
-            job = job_from_path(path, config.features)
-            parts = tuple(map(int, job['date_str'].split('-')))
+        if exact_date:
+            year, month, day = exact_date
+            paths = {directory / f'atspm-{year}-{m}-{d}.parquet'
+                     for m in (str(month), f'{month:02d}') for d in (str(day), f'{day:02d}')}
+            paths = sorted(path for path in paths if path.is_file())
+        else:
+            paths = sorted(directory.glob('atspm-*.parquet'))
+        for path in paths:
+            match = DATE_PATTERN.fullmatch(path.name)
+            if match is None:
+                continue
+            parts = tuple(map(int, match.groups()))
+            label = f'{parts[0]:04d}-{parts[1]:02d}-{parts[2]:02d}'
             if any(wanted and wanted != actual for wanted, actual in zip((config.year, config.month, config.day), parts)):
                 continue
-            if getattr(config, 'start_date', None) and job['date_str'] < config.start_date:
+            if getattr(config, 'start_date', None) and label < config.start_date:
                 continue
-            if getattr(config, 'end_date', None) and job['date_str'] > config.end_date:
+            if getattr(config, 'end_date', None) and label > config.end_date:
                 continue
             if getattr(config, 'auto_mode', False) and time.time() - path.stat().st_mtime > config.max_age_hours * 3600:
                 continue
-            jobs.append(job)
+            jobs.append(job_from_path(path, config.features))
     return jobs
 
 
