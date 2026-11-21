@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run priority dates, then newest-first dates into a separate fresh output tree."""
+"""Run priority dates, then newest-first dates with a resumable output ledger."""
 import argparse
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -59,7 +59,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--campaign-dir', type=Path, required=True)
     parser.add_argument('--processed-dir', type=Path, required=True,
-                        help='Separate empty output directory; never the existing operational result tree.')
+                        help='Output tree. A new campaign requires an empty directory; a resumed campaign retains its ledger.')
     parser.add_argument('--raw-dir', type=Path, default=Path('/data2/ATSPM/raw_data'))
     parser.add_argument('--config-dir', type=Path, default=Path('/data2/ATSPM/config_data/signal_config_2025/lanes'))
     parser.add_argument('--workers', type=int, default=16)
@@ -67,9 +67,6 @@ def main():
     if args.workers < 1:
         parser.error('--workers must be positive')
     output = args.processed_dir.resolve()
-    canonical = Path('/data2/ATSPM/processed_data').resolve()
-    if output == canonical or canonical in output.parents:
-        parser.error('Use a separate output tree to preserve existing operational results.')
     campaign = args.campaign_dir.resolve()
     campaign.mkdir(parents=True, exist_ok=True)
     (campaign/'logs').mkdir(exist_ok=True)

@@ -153,7 +153,8 @@ wheel·소스 배포본을 빌드한 뒤 별도 환경에서 wheel import와 명
 `scripts/run_extraction_campaign.py`는 지정된 NPTOI 우선 날짜를 처리한 뒤,
 나머지 보관 원본을 최신 날짜부터 역순으로 처리합니다.
 우선 현지 날짜 72일과 날짜 경계를 보완하는 원본 4일을 구분해 기록합니다.
-기존 `processed_data`는 출력 대상으로 허용하지 않으며, 새 캠페인은 비어 있는 별도 출력 경로를 사용합니다.
+새 캠페인은 비어 있는 출력 경로로 시작합니다. 운영 경로로 옮길 때는 기존 결과를 백업하고
+생성된 결과와 실행 이력을 함께 이동합니다. 현재 운영 출력은 `/data2/ATSPM/processed_data`입니다.
 동일 캠페인 디렉터리로 다시 실행하면 이미 시도한 날짜는 건너뜁니다.
 partial·failed는 미완료로 남기고 다음 날짜로 진행하며 성공으로 집계하지 않습니다.
 캠페인 전체가 공통 `.pipeline.lock`을 보유하므로 기존 cron 작업과 겹치지 않습니다.
@@ -161,7 +162,7 @@ partial·failed는 미완료로 남기고 다음 날짜로 진행하며 성공�
 ```bash
 python scripts/run_extraction_campaign.py \
   --campaign-dir /data2/ATSPM/operations/runs/nptoi_priority_20261120 \
-  --processed-dir /data2/ATSPM/processed_data_reextract_20261120 \
+  --processed-dir /data2/ATSPM/processed_data \
   --workers 16
 
 python dashboard/campaign_server.py \
@@ -171,4 +172,4 @@ python dashboard/campaign_server.py \
 
 읽기 전용 대시보드는 `http://localhost:8050/`에서 5초마다 날짜 진행률, 신호 작업,
 특징 성공·차단 수와 현재 로그를 갱신합니다. 원격 서버에서는 SSH 또는 IDE 포트 전달을 사용합니다.
-캠페인 상태·날짜별 로그는 캠페인 디렉터리에, 결과와 별도 실행 이력 DB는 새 출력 경로에 저장됩니다.
+캠페인 상태·날짜별 로그는 캠페인 디렉터리에, 결과와 실행 이력 DB는 출력 경로에 저장됩니다.

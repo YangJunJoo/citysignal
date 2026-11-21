@@ -19,7 +19,7 @@
 <div class="panel"><h2>날짜별 처리 상태</h2><div class="muted">partial·failed는 완료 성공에 포함하지 않습니다. 날짜를 누르면 해당 로그가 표시됩니다.</div><div class="scroll"><table><thead><tr><th>원본 일자</th><th>단계</th><th>상태</th><th>신호 완료 / 부분</th></tr></thead><tbody id="dateRows"></tbody></table></div></div>
 <div><div class="panel"><h2>현재 일자 차단·부분 처리 사유</h2><div id="reasons" class="muted">준비 중</div></div><div class="panel"><h2>최근 신호 작업</h2><div class="scroll"><table><thead><tr><th>신호</th><th>상태</th><th>사유</th></tr></thead><tbody id="recent"></tbody></table></div></div></div>
 <div class="panel wide"><div class="head"><h2 id="logTitle">실시간 로그</h2><button id="follow">현재 작업 로그 보기</button></div><pre id="log">연결 중…</pre></div>
-</div><div class="muted footer">5초마다 갱신 · 시각 표시는 America/New_York · 기존 운영 결과는 보존하고 별도 경로에 저장합니다.</div>
+</div><div class="muted footer">5초마다 갱신 · 시각 표시는 America/New_York · 저장 경로는 상단에 표시되며 이전 결과는 백업으로 보존합니다.</div>
 <script>
 const $=id=>document.getElementById(id),fmt=n=>Number(n||0).toLocaleString('ko-KR');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

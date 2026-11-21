@@ -63,12 +63,14 @@ def live_status(campaign):
             EXPECTED_JOBS[run]=len(expected)
         if EXPECTED_JOBS[run]:
             state['live']['expected_jobs']=EXPECTED_JOBS[run]
+        # A resumed date can reuse earlier attempts. Count the latest attempt
+        # for the date so its already published work remains visible.
         state['live']['job_counts']={r['status']:r['n'] for r in conn.execute(
-            'SELECT status,COUNT(*) AS n FROM attempts WHERE run_id=? GROUP BY status',(run,))}
+            'SELECT status,COUNT(*) AS n FROM latest_attempts WHERE date_str=? GROUP BY status',(current['date'],))}
         state['live']['reasons']={r['reason_code']:r['n'] for r in conn.execute(
-            "SELECT reason_code,COUNT(*) AS n FROM attempts WHERE run_id=? AND reason_code!='' GROUP BY reason_code ORDER BY n DESC",(run,))}
+            "SELECT reason_code,COUNT(*) AS n FROM latest_attempts WHERE date_str=? AND reason_code!='' GROUP BY reason_code ORDER BY n DESC",(current['date'],))}
         state['live']['feature_counts']={r['status']:r['n'] for r in conn.execute(
-            'SELECT f.status,COUNT(*) AS n FROM attempts a JOIN feature_results f ON f.attempt_id=a.attempt_id WHERE a.run_id=? GROUP BY f.status',(run,))}
+            'SELECT f.status,COUNT(*) AS n FROM latest_attempts a JOIN feature_results f ON f.attempt_id=a.attempt_id WHERE a.date_str=? GROUP BY f.status',(current['date'],))}
         state['live']['recent_jobs']=[dict(r) for r in conn.execute(
             'SELECT signal_id,date_str,status,reason_code,finished_at FROM attempts WHERE run_id=? ORDER BY attempt_id DESC LIMIT 15',(run,))]
     finally:

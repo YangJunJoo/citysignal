@@ -41,10 +41,13 @@ def test_campaign_attempts_priority_then_newest_and_keeps_partial(tmp_path,monke
     assert len(calls)==4
 
 
-def test_campaign_refuses_existing_operational_output(tmp_path,monkeypatch):
+def test_new_campaign_refuses_unrelated_nonempty_output(tmp_path,monkeypatch):
+    output=tmp_path/'processed_data';output.mkdir()
+    (output/'existing.parquet').write_bytes(b'existing result must remain intact')
     monkeypatch.setattr('sys.argv',['campaign','--campaign-dir',str(tmp_path/'campaign'),
-                                   '--processed-dir','/data2/ATSPM/processed_data'])
+                                   '--processed-dir',str(output)])
     with pytest.raises(SystemExit):campaign.main()
+    assert (output/'existing.parquet').read_bytes()==b'existing result must remain intact'
 
 
 def test_single_day_discovery_handles_padded_names_without_touching_other_dates(tmp_path,monkeypatch):
