@@ -1,31 +1,33 @@
 # CitySignal
 
-신호 이벤트와 교차로 설정을 읽어 phase·cycle 프로파일과 교통 지표를 계산합니다.
-추출 구현은 버전 구분 없이 `feature_extractor/`에서 관리합니다.
-설치 패키지와 공개 import 이름은 `citysignal`입니다.
-`src/citysignal/`은 공통 구현을 연결하는 공개 API이며, 추출 코드를 복제하지 않습니다.
+CitySignal reads signal events and intersection configurations to calculate vehicle
+and pedestrian phase/cycle profiles and traffic metrics. The shared extraction
+implementation lives in `feature_extractor/`, without separate v1/v2 directories.
+
+The distribution and public Python import are named `citysignal`.
+`src/citysignal/` exposes the public API and delegates to the shared implementation.
 
 ```text
-src/citysignal/          # 공개 Python API와 citysignal 명령
+src/citysignal/          # Public Python API and citysignal commands
 feature_extractor/
-├── extractors/          # SPaT, volume, headway, gap, occupancy 등
-├── profiles.py          # 차량·보행자 phase/cycle 생성
-├── data_loader.py       # 신호·날짜별 입력 캐시
-├── pipeline.py          # 공통 특징 계산과 의존성 처리
-├── storage.py           # Parquet 저장·검증, 중첩 값과 메타데이터 복원
-├── checked_execution.py # 검증, 임시 저장, 원자적 결과 발행
-├── checked_runner.py    # 작업 발견, 병렬 실행, 실행 이력
-└── feature_registry.py  # 특징 이름, 의존성, 저장 경로
-data_downloader/         # 다운로드, 분할, 원본 품질·설정 수집
-tests/                  # 회귀·통합 검증과 기준 데이터
-docs/                   # 처리 규칙, 운영·인수인계 문서
-scripts/                # 운영 및 분석 명령
-run_pipeline.py         # 다운로드 → 품질 검사 → 분할 → 추출
+├── extractors/          # SPaT, volume, headway, gap, occupancy, etc.
+├── profiles.py          # Vehicle and pedestrian phase/cycle profiles
+├── data_loader.py       # Cached inputs for each signal and date
+├── pipeline.py          # Shared feature computation and dependencies
+├── storage.py           # Checked Parquet I/O and nested-value restoration
+├── checked_execution.py # Validation, staging, and atomic publication
+├── checked_runner.py    # Job discovery, parallel execution, and run history
+└── feature_registry.py  # Feature names, dependencies, and output paths
+data_downloader/         # Downloads, splitting, source quality, and configurations
+tests/                  # Regression/integration tests and reference data
+docs/                   # Processing rules, operations, and handover guides
+scripts/                # Operational and analysis commands
+run_pipeline.py         # Download → quality checks → split → extract
 ```
 
-## 설치와 실행
+## Installation and execution
 
-프로젝트 루트에서 현재 Python 환경에 설치합니다.
+Install into your Python environment from the project root:
 
 ```bash
 python -m pip install -e '.[test]' --config-settings editable_mode=strict
@@ -34,50 +36,65 @@ citysignal-pipeline --help
 python -m pytest tests -q
 ```
 
-설치 후 `citysignal`, `citysignal-extract`, `citysignal-pipeline` 명령을 사용할 수 있습니다.
-기존 `citysignal/` 가상환경 폴더와 import 이름이 겹치므로 개발 설치에는 위의
-strict editable 방식을 사용하고, 설치 중 생성된 `build/` 디렉터리를 유지합니다.
-일반 설치는 `python -m pip install .`로 할 수 있습니다.
-기존 `atspm-extract`, `atspm-pipeline` 명령도 유지합니다.
-개발 환경에서는 `pyproject.toml`의 의존성으로 설치합니다.
-루트 `requirements.txt`는 이전 운영 환경의 패키지 목록입니다.
-현재 pandas 2.x를 지원합니다. pandas 3.x는 문자열·결측 dtype와 계산 동작이 달라
-기존 결과의 동일성이 검증되기 전까지 설치 의존성에서 제외합니다.
-NOEMI 설정 보고서를 브라우저로 수집할 때만 `.[reports]` 추가 의존성이 필요합니다.
-추출기 import나 일반 데이터 처리에는 브라우저 패키지를 사용하지 않습니다.
+The installation provides `citysignal`, `citysignal-extract`, and
+`citysignal-pipeline`. The previous `atspm-extract` and `atspm-pipeline` commands
+remain available.
 
-운영 실행은 `checked_runner`와 `checked_execution`을 통과합니다.
-입력 품질, 설정, 프로젝트의 8-phase 가정과 결과 검증을 적용한 뒤 결과를 발행합니다.
-v1/v2 엔진 선택 옵션은 제거되었습니다.
+Use strict editable installation when the retired `citysignal/` virtual environment
+is present: its directory name otherwise conflicts with the public import.
+Keep the generated `build/` directory while using this installation.
+For a regular installation, run `python -m pip install .`.
 
-## Phase와 cycle 계산 기준
+Use the dependencies in `pyproject.toml` for development. The root
+`requirements.txt` records the previous operational environment.
+The package currently supports pandas 2.x. pandas 3.x changes string/missing-value
+dtypes and computation behavior, so it is excluded until output equivalence is
+verified. The `.[reports]` extra is needed only to collect NOEMI configuration
+reports through a browser; ordinary extraction does not require browser packages.
 
-기본적으로 phase 1~8, ring `[1,2,3,4]`와 `[5,6,7,8]`을 가정합니다.
-기존 barrier 번호는 그대로 유지합니다: phase `1·2·5·6 → barrier 2`,
-phase `3·4·7·8 → barrier 1`. 별도 ring/barrier 계획이나 적용 기간 자료를 요구하지 않습니다.
-이 가정 자체나 차로 설정의 적용 기간 미확정을 이유로 계산을 차단하지 않습니다.
+Operational entry points use `checked_runner` and `checked_execution`. They apply
+source-quality checks, configuration validation, the project's eight-phase
+assumption, and output validation before publication. Engine selection flags
+for v1/v2 have been removed.
 
-실제 관측된 phase·상태로 cycle을 구성하며 관측되지 않은 8개 phase를 만들어 넣지 않습니다.
-1~8 밖의 관측 phase는 보존하되 barrier 0으로 두어 기본 cycle 경계를 결정하지 않게 합니다.
-차로·채널 연결은 실제 설정에서 읽으며 숫자 phase 가정으로 detector 매핑을 생성하지 않습니다.
-보행 이벤트는 기존처럼 eventParam의 phase 번호로 계산합니다.
+## Phase and cycle model
 
-결과 Parquet의 attrs와 mapping_audit에는 `mapping_basis=assumed_eight_phase`,
-`barrier_mapping_assumed=true`, `barrier_mapping_verified=false`를 기록합니다.
-명시적인 controller_mapping을 전달한 경우에만 그 계획과 적용 기간을 별도로 검증합니다.
-관측 상태 누락·상충 cycle 격리·원본 공백·설정 오류 검사는 계속 적용합니다.
+The default model assumes phases 1–8 and rings `[1,2,3,4]` and `[5,6,7,8]`.
+It retains the existing barrier numbering:
 
-## 데이터와 검증
+- Phases `1, 2, 5, 6` belong to barrier `2`.
+- Phases `3, 4, 7, 8` belong to barrier `1`.
 
-운영 입력·결과·실행 이력은 기본적으로 `/data2/ATSPM`에 저장되며 명령 옵션으로 변경할 수 있습니다.
-`citysignal/Lib/site-packages`와 로컬 wheel을 소스나 의존성으로 사용하지 않습니다.
-기존 `citysignal/` 가상환경은 자동 삭제하지 않으며, Git 추적 대상에서 제외합니다.
+Separate ring/barrier plans and validity-period records are not required.
+The assumption itself, or an unconfirmed lane-configuration validity period,
+does not block extraction.
 
-추출 결과와 내부 임시 데이터, 테스트 기준 데이터의 저장 형식은 **Parquet**입니다.
-PyArrow의 Parquet 2.6과 ZSTD 압축을 사용하며, 신호·날짜별 기존 폴더 구조를 유지합니다.
-저장 전에 열별 스키마를 정하고, 임시 파일을 다시 읽어 검증한 뒤 원자적으로 발행합니다.
+Cycles use observed phases and states; unobserved phases or events are not
+fabricated. Observed phases outside 1–8 remain in the output with barrier `0`
+and do not define the default cycle boundaries. Lane/channel relationships come
+from the actual configuration. Numeric phase assumptions do not create detector
+mappings. Pedestrian events retain their `eventParam` phase identity.
 
-프로파일과 특징 결과는 공통 API로 읽고 씁니다.
+Parquet attributes and mapping audits record
+`mapping_basis=assumed_eight_phase`, `barrier_mapping_assumed=true`, and
+`barrier_mapping_verified=false`. An explicitly supplied `controller_mapping`
+is validated separately, including its validity period. Missing observed states,
+conflicting cycle windows, raw-source gaps, and configuration errors remain
+subject to quality checks.
+
+## Data and validation
+
+Operational inputs, results, and run history default to `/data2/ATSPM`; command
+options can override these locations. Neither `citysignal/Lib/site-packages` nor
+a local wheel is used as a source dependency. The retired `citysignal/` virtual
+environment is preserved and excluded from Git.
+
+Extracted outputs, internal staging data, and test reference data use **Parquet**.
+Files use PyArrow's Parquet 2.6 format with ZSTD compression and retain the
+signal/date directory layout. The writer determines column schemas, reads back
+and validates a staged file, then publishes it atomically.
+
+Read and write extracted profiles and features through the shared API:
 
 ```python
 from citysignal.storage import read_frame, write_frame
@@ -86,78 +103,96 @@ frame = read_frame("/path/to/2025-09-13.parquet")
 write_frame(frame, "/path/to/copy.parquet")
 ```
 
-파일 footer의 `atspm.dataframe` 계약에 원래 dtype·인덱스·중첩 컨테이너·결측 구분과
-`DataFrame.attrs`를 저장합니다. 시간 구간은 Arrow의 `list<struct<begin, end>>`로 저장하고,
-읽을 때 기존 계산 코드가 사용하는 `list[tuple[Timestamp, Timestamp]]`로 복원합니다.
-나노초 정밀도와 로컬 시각을 유지하며 시간대를 임의로 변환하지 않습니다.
-`read_frame`은 계약이 누락되거나 지원하지 않는 버전이면 실패 처리합니다.
-외부 원본 이벤트 Parquet는 기존 원본 데이터 로더에서 읽습니다.
+The `atspm.dataframe` footer contract preserves original dtypes, indexes, nested
+containers, missing-value distinctions, and `DataFrame.attrs`. Time intervals
+are stored as Arrow `list<struct<begin, end>>` and restored as
+`list[tuple[Timestamp, Timestamp]]` for the existing computation code.
+Nanosecond precision and local wall times are retained without arbitrary timezone
+conversion. `read_frame` rejects missing or unsupported contracts. External raw
+event Parquet files are read through the raw-data loader.
 
-과거 실험의 여러 DataFrame 결과 묶음과 캐시 스냅샷은
-`citysignal.archive_storage.read_artifact`로 읽는 Parquet 아카이브입니다.
-DataFrame은 실제 Arrow list/struct 열에 저장하며, 제거된 클래스의 캐시는
-클래스 코드 실행 없이 클래스 이름과 속성 데이터인 `ArchivedObjectState`로 복원합니다.
+Historical bundles of multiple DataFrames and cache snapshots use Parquet archives
+read with `citysignal.archive_storage.read_artifact`. DataFrames use actual Arrow
+list/struct columns. Retired cache classes are restored as inert
+`ArchivedObjectState` values containing a class name and attributes, without
+executing the retired class code.
 
-`pd.read_parquet`만으로는 계산에 필요한 `attrs`와 Python 컨테이너가 복원되지 않으므로,
-추출 결과를 계산에 재사용할 때는 반드시 `read_frame`을 사용합니다.
+Use `read_frame` when reusing extracted results for computation:
+`pd.read_parquet` alone does not restore all required attributes and Python
+container types.
 
-기존 PKL의 일회성 전환은 `scripts/migrate_pickles_to_parquet.py`의 `plan → convert → delete`
-단계로 수행합니다. 모든 계획 파일의 변환과 정확성 검증이 끝나야 삭제 단계가 허용되며,
-삭제 직전 원본과 Parquet의 SHA-256을 다시 확인합니다. 실패·충돌·입력 변경 시 원본을 보존합니다.
-변환 목록과 journal은 `scratch/parquet_migration_20261119/`에 보존합니다.
-과거 실행 이력은 변경하지 않고 변환 provenance와 journal을 통해 새 경로를 확인하므로,
-해당 journal은 검증 증거와 과거 이력의 재사용을 위해 유지해야 합니다.
+The one-time PKL migration uses
+`scripts/migrate_pickles_to_parquet.py` in `plan → convert → delete` stages.
+Deletion requires successful conversion and exact validation of every planned
+file, followed by another SHA-256 check of both source and target. Failures,
+collisions, or changed inputs preserve the source. The migration plan and journal
+are retained under `scratch/parquet_migration_20261119/`.
+Historical ledger rows remain intact; migration provenance and the journal resolve
+their new output paths. Keep the journal for validation evidence and historical
+result reuse.
 
-작은 합성 입력을 사용하는 테스트는 운영 데이터 없이 실행됩니다.
-`tests/golden_data` 회귀 검증 중 일부는 기존 원본·설정·프로파일도 필요하며,
-해당 입력이 없으면 skip됩니다. 전체 검증 결과에서 skip 개수도 확인해야 합니다.
+Tests with small synthetic inputs run without operational data. Some regression
+tests in `tests/golden_data` also require retained raw inputs, configurations, and
+profiles; they are skipped when these inputs are unavailable. Review skip counts
+alongside test results.
 
-저장된 기준 결과와 새 결과는 읽기 전용 도구로 비교할 수 있습니다.
+Compare saved reference and candidate results with the read-only tool:
 
 ```bash
 python scripts/compare_reference_outputs.py \
   --reference-dir /path/to/reference \
   --candidate-dir /path/to/candidate \
-  --signal 1050 --date 2025-09-13 \
+  --signal 1050 \
+  --date 2025-09-13 \
   --features spat volume
 ```
 
-이 명령은 추출을 실행하거나 결과 파일을 덮어쓰지 않습니다.
-기존 비교 프로그램의 원문은 `docs/archive/extraction_comparisons/`에 보존했습니다.
-기존 파일명의 진입점은 위 읽기 전용 비교 도구로 연결됩니다.
+This command neither runs extraction nor overwrites result files. Original
+comparison programs are preserved under `docs/archive/extraction_comparisons/`;
+their former entry points now delegate to this read-only comparison tool.
 
-새 실행 이력의 엔진 식별자는 `vectorized`입니다. 이전 이력은 수정하지 않으며,
-이전 엔진 식별자로 저장된 결과를 새 실행에서 자동 재사용하지 않습니다.
+New run history uses the engine identifier `vectorized`. Previous history is
+preserved, and outputs recorded under an earlier engine identifier are not
+automatically reused by a new run.
 
-처리·운영 절차는 [인수인계 문서](docs/handover/README.md)와
-[처리 규칙](docs/checked_pipeline.md)을 참고하세요.
+See the [handover guide](docs/handover/README.md) and
+[checked pipeline operations](docs/checked_pipeline.md) for operational details.
 
-## GitHub에서 버전 관리
+## GitHub version control
 
-저장소 대상은 `YangJunJoo/citysignal`입니다.
-코드·문서와 `tests/golden_data/`의 Parquet 기준 데이터를 추적하고,
-운영 데이터·결과·가상환경·로그·인증정보는 `.gitignore`로 제외합니다.
+The repository is `YangJunJoo/citysignal`. Git tracks code, documentation, and
+Parquet reference data in `tests/golden_data/`. Operational data, generated
+results, virtual environments, logs, and credentials are excluded by `.gitignore`.
 
-push와 pull request마다 GitHub Actions가 Python 3.10·3.12·3.14에서 테스트하고,
-wheel·소스 배포본을 빌드한 뒤 별도 환경에서 wheel import와 명령 실행을 확인합니다.
-운영 입력이 필요한 회귀 테스트는 GitHub에서 skip될 수 있으며,
-실제 출력의 동일성 검증은 해당 입력이 있는 운영 검증 환경에서도 수행해야 합니다.
-빌드 파일과 테스트 결과는 Actions 실행의 artifact에서 확인할 수 있습니다.
-이 workflow는 운영 실행, GitHub Release 생성, PyPI 게시를 자동으로 수행하지 않습니다.
+On pushes and pull requests, GitHub Actions tests Python 3.10, 3.12, and 3.14,
+builds a wheel and source distribution, and verifies installed-wheel imports and
+commands in a separate environment. Tests requiring operational inputs may be
+skipped on GitHub; real-output equivalence must also be checked in an environment
+with those inputs. Build files and test results are available as workflow
+artifacts. The workflow does not run operational extraction, create GitHub
+Releases, or publish to PyPI.
 
-버전은 `src/citysignal/__init__.py`의 `__version__` 한 곳에서 관리합니다.
-검증된 커밋에 `v0.1.0` 같은 태그를 붙이고, 이후 변경은 별도 커밋으로 남깁니다.
+The single version source is `__version__` in `src/citysignal/__init__.py`.
+Tag verified commits with versions such as `v0.1.1` and record later changes in
+separate commits. Repository documentation, comments, interface text, and commit
+messages are written in English; see [Contributing](CONTRIBUTING.md).
 
-## 우선 날짜 재추출과 모니터링
+## Priority extraction and monitoring
 
-`scripts/run_extraction_campaign.py`는 지정된 NPTOI 우선 날짜를 처리한 뒤,
-나머지 보관 원본을 최신 날짜부터 역순으로 처리합니다.
-우선 현지 날짜 72일과 날짜 경계를 보완하는 원본 4일을 구분해 기록합니다.
-새 캠페인은 비어 있는 출력 경로로 시작합니다. 운영 경로로 옮길 때는 기존 결과를 백업하고
-생성된 결과와 실행 이력을 함께 이동합니다. 현재 운영 출력은 `/data2/ATSPM/processed_data`입니다.
-동일 캠페인 디렉터리로 다시 실행하면 이미 시도한 날짜는 건너뜁니다.
-partial·failed는 미완료로 남기고 다음 날짜로 진행하며 성공으로 집계하지 않습니다.
-캠페인 전체가 공통 `.pipeline.lock`을 보유하므로 기존 cron 작업과 겹치지 않습니다.
+`scripts/run_extraction_campaign.py` processes the designated NPTOI priority dates,
+then processes the remaining retained source files from newest to oldest.
+It distinguishes the 72 requested local dates from four additional source days
+that cover date boundaries.
+
+A new campaign starts with an empty output directory. When relocating to the
+operational path, preserve previous results in a backup and move generated results
+and their ledger together. The current operational output is
+`/data2/ATSPM/processed_data`.
+
+Restarting with the same campaign directory skips dates already attempted.
+`partial` and `failed` dates remain unresolved while the queue continues; they
+are not counted as complete. The campaign holds the shared `.pipeline.lock`
+throughout execution to prevent overlap with scheduled jobs.
 
 ```bash
 python scripts/run_extraction_campaign.py \
@@ -167,9 +202,12 @@ python scripts/run_extraction_campaign.py \
 
 python dashboard/campaign_server.py \
   --campaign-dir /data2/ATSPM/operations/runs/nptoi_priority_20261120 \
-  --host 127.0.0.1 --port 8050
+  --host 127.0.0.1 \
+  --port 8050
 ```
 
-읽기 전용 대시보드는 `http://localhost:8050/`에서 5초마다 날짜 진행률, 신호 작업,
-특징 성공·차단 수와 현재 로그를 갱신합니다. 원격 서버에서는 SSH 또는 IDE 포트 전달을 사용합니다.
-캠페인 상태·날짜별 로그는 캠페인 디렉터리에, 결과와 실행 이력 DB는 출력 경로에 저장됩니다.
+The read-only dashboard at `http://localhost:8050/` refreshes every five seconds
+with date progress, signal jobs, feature success/blocked counts, and live logs.
+Use SSH or IDE port forwarding when accessing a remote server. Campaign state and
+daily logs reside in the campaign directory; results and the execution ledger
+reside in the output directory.

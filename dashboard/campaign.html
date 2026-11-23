@@ -1,57 +1,57 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CitySignal · 추출 모니터</title>
+<title>CitySignal · Extraction Monitor</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0c1423;color:#e5edf9}*{box-sizing:border-box}body{margin:0;padding:28px;max-width:1500px;margin-inline:auto}h1{font-size:28px;margin:0 0 8px}h2{font-size:18px;margin:0 0 15px}.muted{color:#9daec8;font-size:13px;line-height:1.7}.head{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:24px}.badge{display:inline-block;border-radius:6px;padding:4px 8px;font-size:12px;background:#27344d}.complete{color:#76e4b0;background:#123c34}.partial,.waiting_for_pipeline_lock{color:#ffdb8a;background:#493b22}.failed,.interrupted{color:#ffacac;background:#4c2730}.running,.extracting{color:#9fd5ff;background:#173c5c}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.card,.panel{background:#131f32;border:1px solid #293750;border-radius:12px;padding:20px}.big{font-size:30px;font-weight:700;margin:9px 0}.layout{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}.panel{margin-bottom:18px}.bar{height:8px;background:#2a3650;border-radius:8px;overflow:hidden;margin:14px 0}.bar>div{height:100%;background:#46c5a0;transition:width .5s}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:10px 8px;text-align:left;border-bottom:1px solid #28354b}th{color:#a9bad2;font-weight:500;position:sticky;top:0;background:#131f32}.scroll{max-height:390px;overflow:auto}tr[data-key]{cursor:pointer}tr[data-key]:hover{background:#1b2c46}pre{font:12px/1.65 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;max-height:550px;overflow:auto;background:#09111e;padding:16px;border-radius:8px}.wide{grid-column:1/-1}.error{background:#4c2730;padding:14px;border-radius:8px;display:none;margin:15px 0}button{background:#243853;color:#d9e9ff;border:1px solid #405777;border-radius:6px;padding:7px 12px;cursor:pointer}.paths{overflow-wrap:anywhere}.footer{padding:10px 0 25px}@media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.head{align-items:start;flex-direction:column}body{padding:16px}}
 </style>
-<div class="head"><div><h1>CitySignal 추출 모니터</h1><div class="muted">NPTOI 우선 날짜 → 나머지 원본 최신순 · 8-phase 기본 가정</div></div><div><span id="status" class="badge">연결 중</span><div id="updated" class="muted"></div></div></div>
+<div class="head"><div><h1>CitySignal Extraction Monitor</h1><div class="muted">NPTOI priority dates → remaining sources newest first · Eight-phase default</div></div><div><span id="status" class="badge">Connecting</span><div id="updated" class="muted"></div></div></div>
 <div id="error" class="error" role="alert"></div>
 <div class="cards">
-<div class="card"><div class="muted">현재 단계 / 원본 일자</div><div id="current" class="big">—</div><div id="phase" class="muted">—</div></div>
-<div class="card"><div class="muted">우선 원본 처리 시도</div><div id="dates" class="big">—</div><div id="datesNote" class="muted">요청 현지 날짜 72일 + 경계 원본 4일</div></div>
-<div class="card"><div class="muted">현재 일자 신호 작업</div><div id="jobs" class="big">—</div><div id="jobCounts" class="muted">—</div></div>
-<div class="card"><div class="muted">현재 일자 발행 성공</div><div id="features" class="big">—</div><div id="featureCounts" class="muted">—</div></div>
+<div class="card"><div class="muted">Current source date</div><div id="current" class="big">—</div><div id="phase" class="muted">—</div></div>
+<div class="card"><div class="muted">Priority source dates attempted</div><div id="dates" class="big">—</div><div id="datesNote" class="muted">72 requested local dates + 4 boundary source days</div></div>
+<div class="card"><div class="muted">Signal jobs for current date</div><div id="jobs" class="big">—</div><div id="jobCounts" class="muted">—</div></div>
+<div class="card"><div class="muted">Published outputs for current date</div><div id="features" class="big">—</div><div id="featureCounts" class="muted">—</div></div>
 </div>
-<div class="panel"><h2 id="queueTitle">우선 처리</h2><div id="range" class="muted"></div><div class="bar"><div id="progress" style="width:0%"></div></div><div id="overall" class="muted"></div><div id="output" class="muted paths"></div></div>
+<div class="panel"><h2 id="queueTitle">Priority processing</h2><div id="range" class="muted"></div><div class="bar"><div id="progress" style="width:0%"></div></div><div id="overall" class="muted"></div><div id="output" class="muted paths"></div></div>
 <div class="layout">
-<div class="panel"><h2>날짜별 처리 상태</h2><div class="muted">partial·failed는 완료 성공에 포함하지 않습니다. 날짜를 누르면 해당 로그가 표시됩니다.</div><div class="scroll"><table><thead><tr><th>원본 일자</th><th>단계</th><th>상태</th><th>신호 완료 / 부분</th></tr></thead><tbody id="dateRows"></tbody></table></div></div>
-<div><div class="panel"><h2>현재 일자 차단·부분 처리 사유</h2><div id="reasons" class="muted">준비 중</div></div><div class="panel"><h2>최근 신호 작업</h2><div class="scroll"><table><thead><tr><th>신호</th><th>상태</th><th>사유</th></tr></thead><tbody id="recent"></tbody></table></div></div></div>
-<div class="panel wide"><div class="head"><h2 id="logTitle">실시간 로그</h2><button id="follow">현재 작업 로그 보기</button></div><pre id="log">연결 중…</pre></div>
-</div><div class="muted footer">5초마다 갱신 · 시각 표시는 America/New_York · 저장 경로는 상단에 표시되며 이전 결과는 백업으로 보존합니다.</div>
+<div class="panel"><h2>Date processing status</h2><div class="muted">Partial and failed dates are not counted as complete. Select a date to view its log.</div><div class="scroll"><table><thead><tr><th>Source date</th><th>Stage</th><th>Status</th><th>Complete / partial jobs</th></tr></thead><tbody id="dateRows"></tbody></table></div></div>
+<div><div class="panel"><h2>Blocking and partial reasons for current date</h2><div id="reasons" class="muted">Preparing</div></div><div class="panel"><h2>Recent signal jobs</h2><div class="scroll"><table><thead><tr><th>Signal</th><th>Status</th><th>Reason</th></tr></thead><tbody id="recent"></tbody></table></div></div></div>
+<div class="panel wide"><div class="head"><h2 id="logTitle">Live log</h2><button id="follow">Follow current job log</button></div><pre id="log">Connecting…</pre></div>
+</div><div class="muted footer">Refreshes every 5 seconds · Times use America/New_York · The output path is shown above; previous results are backed up.</div>
 <script>
-const $=id=>document.getElementById(id),fmt=n=>Number(n||0).toLocaleString('ko-KR');
+const $=id=>document.getElementById(id),fmt=n=>Number(n||0).toLocaleString('en-US');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const names={running:'실행 중',complete:'완료',partial:'부분 처리',failed:'실패',pending:'대기',interrupted:'중단',waiting_for_pipeline_lock:'다른 작업 종료 대기',finished_with_unresolved:'전체 시도 종료 · 미완료 잔여',starting:'시작 중',stopping:'중지 중'};
+const names={running:'Running',complete:'Complete',partial:'Partial',failed:'Failed',pending:'Pending',interrupted:'Interrupted',waiting_for_pipeline_lock:'Waiting for another pipeline',finished_with_unresolved:'All dates attempted · Unresolved work remains',starting:'Starting',stopping:'Stopping'};
 const badge=s=>`<span class="badge ${esc(s)}">${esc(names[s]||s)}</span>`;
 let selected='',busy=false;
 async function refresh(){if(busy)return;busy=true;try{
  const response=await fetch('/api/status',{cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error||response.status);
  $('error').style.display='none';$('status').className='badge '+data.status;$('status').textContent=names[data.status]||data.status;
- const alive=data.supervisor_alive;$('updated').textContent=(alive?'프로세스 실행 확인':'프로세스 종료 확인')+' · '+new Date(data.updated_at).toLocaleString('ko-KR',{timeZone:'America/New_York'});
- if(!alive&&['running','starting','waiting_for_pipeline_lock'].includes(data.status)){$('error').style.display='block';$('error').textContent='감독 프로세스가 종료되었습니다. 표시된 상태는 마지막 기록입니다.';}
+ const alive=data.supervisor_alive;$('updated').textContent=(alive?'Supervisor is running':'Supervisor has stopped')+' · '+new Date(data.updated_at).toLocaleString('en-US',{timeZone:'America/New_York'});
+ if(!alive&&['running','starting','waiting_for_pipeline_lock'].includes(data.status)){$('error').style.display='block';$('error').textContent='The supervisor has stopped. The displayed status is its last saved record.';}
  const current=data.current,live=data.live||{},counts=live.job_counts||{},features=live.feature_counts||{},records=data.records||{};
- $('current').textContent=current?.date||'—';$('phase').textContent=(data.phase==='priority'?'1단계 · 우선 날짜':'2단계 · 최신순')+' / '+(live.stage==='extracting'?'신호별 추출':'다운로드·품질 검사·분할 준비');
+ $('current').textContent=current?.date||'—';$('phase').textContent=(data.phase==='priority'?'Stage 1 · Priority dates':'Stage 2 · Newest first')+' / '+(live.stage==='extracting'?'Signal extraction':'Download, quality checks, and split preparation');
  const priority=Object.values(records).filter(r=>r.phase==='priority'&&['complete','partial','failed'].includes(r.status)).length;
  $('dates').textContent=`${priority} / ${data.priority_source_dates.length}`;
  const done=(counts.complete||0)+(counts.partial||0);$('jobs').textContent=fmt(done)+(live.expected_jobs?' / '+fmt(live.expected_jobs):'');
- $('jobCounts').textContent=`완료 ${fmt(counts.complete)} · 부분 ${fmt(counts.partial)} · 진행 ${fmt(counts.running)}`;
- $('features').textContent=fmt(features.success);$('featureCounts').textContent=`차단 ${fmt(features.blocked)} · 실패 ${fmt(features.failed)} · 데이터 없음 ${fmt(features.no_data)}`;
+ $('jobCounts').textContent=`Complete ${fmt(counts.complete)} · Partial ${fmt(counts.partial)} · Running ${fmt(counts.running)}`;
+ $('features').textContent=fmt(features.success);$('featureCounts').textContent=`Blocked ${fmt(features.blocked)} · Failed ${fmt(features.failed)} · No data ${fmt(features.no_data)}`;
  const phaseDates=data[data.phase+'_source_dates']||[],attempted=Object.values(records).filter(r=>r.phase===data.phase&&['complete','partial','failed'].includes(r.status)).length;
- $('queueTitle').textContent=data.phase==='priority'?'1단계 · 지정 날짜 우선 추출':'2단계 · 나머지 원본 최신순 추출';
+ $('queueTitle').textContent=data.phase==='priority'?'Stage 1 · Priority date extraction':'Stage 2 · Remaining sources newest first';
  $('range').textContent=data.priority_ranges.map(r=>r.join(' ~ ')).join(' / ');
  $('progress').style.width=(phaseDates.length?100*attempted/phaseDates.length:0)+'%';
- $('overall').textContent=`현재 단계 ${attempted} / ${phaseDates.length}일 처리 시도 · 전체 날짜 성공 ${fmt(data.date_counts?.complete)} · 부분 ${fmt(data.date_counts?.partial)} · 실패 ${fmt(data.date_counts?.failed)} · 작업자 ${data.workers}개`;
- $('output').textContent='새 결과: '+data.output_dir;
+ $('overall').textContent=`Stage progress ${attempted} / ${phaseDates.length} source dates attempted · Dates complete ${fmt(data.date_counts?.complete)} · Partial ${fmt(data.date_counts?.partial)} · Failed ${fmt(data.date_counts?.failed)} · Workers ${data.workers}`;
+ $('output').textContent='Output: '+data.output_dir;
  const queue=[...data.priority_source_dates.map(date=>({date,phase:'priority'})),...(data.latest_source_dates||[]).map(date=>({date,phase:'latest'}))];
- $('dateRows').innerHTML=queue.map(row=>{const key=row.phase+':'+row.date,r=records[key]||{status:'pending'},s=r.summary?.counts||{};return `<tr data-key="${esc(key)}"><td>${row.date}${data.boundary_source_dates.includes(row.date)?' <span class="muted">경계</span>':''}</td><td>${row.phase==='priority'?'우선':'최신순'}</td><td>${badge(r.status)}</td><td>${fmt(s.complete)} / ${fmt(s.partial)}</td></tr>`}).join('');
- const reasons=Object.entries(live.reasons||{});$('reasons').innerHTML=reasons.length?reasons.map(([key,n])=>`<div>${esc(key)} <strong>${fmt(n)}</strong></div>`).join(''):'현재 기록된 차단 사유 없음';
+ $('dateRows').innerHTML=queue.map(row=>{const key=row.phase+':'+row.date,r=records[key]||{status:'pending'},s=r.summary?.counts||{};return `<tr data-key="${esc(key)}"><td>${row.date}${data.boundary_source_dates.includes(row.date)?' <span class="muted">boundary</span>':''}</td><td>${row.phase==='priority'?'Priority':'Newest first'}</td><td>${badge(r.status)}</td><td>${fmt(s.complete)} / ${fmt(s.partial)}</td></tr>`}).join('');
+ const reasons=Object.entries(live.reasons||{});$('reasons').innerHTML=reasons.length?reasons.map(([key,n])=>`<div>${esc(key)} <strong>${fmt(n)}</strong></div>`).join(''):'No blocking reasons recorded';
  $('recent').innerHTML=(live.recent_jobs||[]).map(row=>`<tr><td>${esc(row.signal_id)}</td><td>${badge(row.status)}</td><td>${esc(row.reason_code||'—')}</td></tr>`).join('');
- const logResponse=await fetch('/api/log'+(selected?'?key='+encodeURIComponent(selected):''),{cache:'no-store'});if(!logResponse.ok)throw Error('로그 조회 실패');
+ const logResponse=await fetch('/api/log'+(selected?'?key='+encodeURIComponent(selected):''),{cache:'no-store'});if(!logResponse.ok)throw Error('Unable to load logs');
  const box=$('log'),atBottom=box.scrollTop+box.clientHeight>=box.scrollHeight-40;box.textContent=await logResponse.text();if(atBottom)box.scrollTop=box.scrollHeight;
- $('logTitle').textContent=selected?selected+' 로그':'현재 작업 실시간 로그';
- }catch(error){$('error').style.display='block';$('error').textContent='연결 오류: '+error.message;}finally{busy=false;}}
+ $('logTitle').textContent=selected?selected+' log':'Live log for current job';
+ }catch(error){$('error').style.display='block';$('error').textContent='Connection error: '+error.message;}finally{busy=false;}}
  $('dateRows').addEventListener('click',event=>{const row=event.target.closest('[data-key]');if(row){selected=row.dataset.key;refresh()}});
  $('follow').onclick=()=>{selected='';refresh()};refresh();setInterval(refresh,5000);
 </script>
