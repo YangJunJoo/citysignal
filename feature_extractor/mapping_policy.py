@@ -7,7 +7,6 @@ from datetime import date
 import hashlib
 from pathlib import Path
 
-import pandas as pd
 from .profiles import DEFAULT_BARRIERS
 
 MAPPING_POLICY_VERSION = 'eight-phase-default-2'

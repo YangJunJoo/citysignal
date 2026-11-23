@@ -9,7 +9,6 @@ using vectorized pandas operations.
 """
 
 import pandas as pd
-import numpy as np
 import logging
 
 
@@ -94,14 +93,3 @@ def _compute_interval_duration(timestamps) -> float:
                     raise ValueError('Negative state interval')
                 total += (end - start).total_seconds()
     return round(total, 4)
-
-
-def _is_nat_timestamps(timestamps) -> bool:
-    """Check if timestamps are effectively NaT/empty."""
-    if timestamps is None:
-        return True
-    if not isinstance(timestamps, list):
-        timestamps = [timestamps]
-    if timestamps == [pd.NaT]:
-        return True
-    return all(pd.isna(t) for t in timestamps)

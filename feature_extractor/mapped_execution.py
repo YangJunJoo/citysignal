@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from feature_extractor.profiles import build_vehicle_phase_profile
-from .feature_registry import FEATURES, output_path, resolve_features
+from .feature_registry import output_path, resolve_features
 from .mapping_policy import assess_mapping
 from .result_types import FeatureResult
 

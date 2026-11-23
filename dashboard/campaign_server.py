@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Read-only live dashboard for the extraction campaign; no pipeline controls."""
 import argparse
-from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

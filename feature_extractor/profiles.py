@@ -162,14 +162,6 @@ def _union(intervals):
     return result
 
 
-def _intersects(a, b):
-    a, b = _union(a), _union(b); i = j = 0
-    while i < len(a) and j < len(b):
-        if max(a[i][0], b[j][0]) < min(a[i][1], b[j][1]):
-            return True
-        if a[i][1] < b[j][1]: i += 1
-        else: j += 1
-    return False
 
 
 def build_vehicle_cycle_profile(phases, signal_id, date_str, start_barrier_no=1, conflict_policy='reject'):

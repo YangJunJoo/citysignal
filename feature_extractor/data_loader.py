@@ -10,7 +10,6 @@ to all feature extractors.
 
 import os
 import logging
-import tempfile
 import pandas as pd
 import numpy as np
 from . import storage

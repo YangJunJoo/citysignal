@@ -24,7 +24,6 @@ except ImportError:
 import time
 from datetime import datetime
 import json
-import hashlib
 
 # Setup logging
 logging.basicConfig(
@@ -96,24 +95,6 @@ def is_valid_split_output(output_path, expected_rows=None):
         return False
 
 
-def is_file_cached_as_processed(file_path, cache):
-    """Check if file is cached as processed and hasn't changed."""
-    file_sig = get_file_signature(file_path)
-    if not file_sig:
-        return False
-    
-    file_key = file_sig['path']
-    if file_key not in cache:
-        return False
-    
-    cached_sig = cache[file_key]
-    # Check if file has been modified (mtime or size changed)
-    if (cached_sig.get('mtime') != file_sig['mtime'] or 
-        cached_sig.get('size') != file_sig['size']):
-        return False
-    
-    # File is cached and hasn't changed
-    return cached_sig.get('processed', False)
 
 
 def update_cache_processed(file_path, output_dir, cache):

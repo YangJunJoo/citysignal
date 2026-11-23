@@ -10,7 +10,6 @@ conda activate atspm & python data_downloader/download_signal_configs.py
 import os
 import sys
 import time
-import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 import logging

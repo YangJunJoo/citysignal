@@ -18,22 +18,19 @@ if _storage_root.name in {'feature_extractor', 'scripts', 'plot'}:
     _storage_root = _storage_root.parent
 if str(_storage_root) not in _storage_sys.path:
     _storage_sys.path.insert(0, str(_storage_root))
-from feature_extractor.storage import read_frame, write_frame
+from feature_extractor.storage import read_frame
 
 
 import pandas as pd
 import numpy as np
 import os
-import sys
 import glob
-from pathlib import Path
 import argparse
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Any
 import warnings
 import json
 import hashlib
 import sqlite3
-from datetime import datetime
 warnings.filterwarnings('ignore')
 
 
@@ -976,7 +973,7 @@ class ATSPMFeatureAnalyzer:
                 # If not invalidate_only, analyze and cache
                 if not invalidate_only:
                     try:
-                        results = self.analyze_signal_date(signal_id, date_str, verbose=False, force=True)
+                        self.analyze_signal_date(signal_id, date_str, verbose=False, force=True)
                         analyzed.append((signal_id, date_str))
                         if verbose:
                             print(f"  ✓ Analyzed and cached: {signal_id} / {date_str}")

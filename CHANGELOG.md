@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Remove unused legacy processing classes and obsolete helpers while retaining the checked CLI and tested compatibility API.
+- Remove unused runtime imports and local bindings without dropping validation or cache side effects.
+
 ## 0.1.1
 
 - Use the existing eight-phase, two-ring model by default, without requiring controller plans or effective dates.

@@ -1,5 +1,4 @@
 """Isolated profile/feature execution with verified, atomic output publication."""
-import os
 import tempfile
 from pathlib import Path
 

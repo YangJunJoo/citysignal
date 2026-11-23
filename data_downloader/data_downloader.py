@@ -217,7 +217,7 @@ def is_csv_corrupted(csv_path):
     """Check if CSV file is corrupted by trying to read it."""
     try:
         # Try to read just a few rows to check if file is valid
-        df = pd.read_csv(str(csv_path), nrows=1, low_memory=False)
+        pd.read_csv(str(csv_path), nrows=1, low_memory=False)
         # Also try to get file size - empty files might be considered corrupted
         if csv_path.stat().st_size == 0:
             return True

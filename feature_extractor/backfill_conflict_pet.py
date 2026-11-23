@@ -24,14 +24,12 @@ from feature_extractor.storage import read_frame, write_frame
 
 
 import os
-import sys
 import time
 import argparse
 import warnings
 import numpy as np
 import pandas as pd
 from multiprocessing import Pool
-from functools import partial
 
 warnings.filterwarnings('ignore')
 

@@ -8,7 +8,7 @@ that was previously embedded in the main processing script.
 import argparse
 import os
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 
 def load_signals_from_file(file_path: str) -> List[str]:
