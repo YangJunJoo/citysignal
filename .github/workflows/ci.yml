@@ -34,7 +34,8 @@ jobs:
         shell: bash
         run: |
           python -m venv --system-site-packages "$RUNNER_TEMP/citysignal-wheel"
-          "$RUNNER_TEMP/citysignal-wheel/bin/python" -m pip install --no-deps dist/*.whl
+          # The shared environment already contains this version; install local CLI scripts too.
+          "$RUNNER_TEMP/citysignal-wheel/bin/python" -m pip install --no-deps --ignore-installed dist/*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/citysignal-wheel/bin/python" -I "$GITHUB_WORKSPACE/scripts/verify_installed_package.py"
           "$RUNNER_TEMP/citysignal-wheel/bin/python" -I -m citysignal --help
